@@ -7,7 +7,7 @@ on:
     paths: ['index.html', 'apk/**', '.github/workflows/apk.yml']
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -45,6 +45,16 @@ jobs:
           "$BT/zipalign" -p -f 4 apk/android/app/build/outputs/apk/release/app-release-unsigned.apk out/muhasib-unsigned.apk
           cp "$BT/lib/apksigner.jar" out/apksigner.jar
           ls -la out
+
+      # Temporary hand-over branch; it is deleted right after the build is picked up and signed.
+      - name: Hand over the unsigned build
+        run: |
+          cd out
+          git init -q -b apk-out
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git add -A && git commit -qm "unsigned build ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" apk-out
 
       # Unsigned build only. It is signed afterwards with a key that is never stored on GitHub.
       - uses: actions/upload-artifact@v4
