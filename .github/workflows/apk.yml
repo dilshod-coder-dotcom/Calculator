@@ -1,0 +1,54 @@
+name: APK (Muhāsib)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['index.html', 'apk/**', '.github/workflows/apk.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Capacitor
+        working-directory: apk
+        run: npm ci --no-audit --no-fund
+
+      - name: Copy the offline web app into the APK
+        run: |
+          mkdir -p apk/www
+          cp index.html apk/www/index.html
+          cd apk && npx cap sync android
+
+      - name: Build release APK (unsigned)
+        working-directory: apk/android
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Align APK and collect the signing tool
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          mkdir -p out
+          "$BT/zipalign" -p -f 4 apk/android/app/build/outputs/apk/release/app-release-unsigned.apk out/muhasib-unsigned.apk
+          cp "$BT/lib/apksigner.jar" out/apksigner.jar
+          ls -la out
+
+      # Unsigned build only. It is signed afterwards with a key that is never stored on GitHub.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: muhasib-unsigned
+          path: out/
+          retention-days: 2

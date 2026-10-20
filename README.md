@@ -1,4 +1,4 @@
-# Calculator
+# Muhāsib (محَاسِب)
 
 Yog'och mahsulotlari savdosi va ombor qoldig'ini kunma-kun hisoblaydigan, internetsiz ishlaydigan telefon ilovasi.
 
@@ -12,3 +12,6 @@ Telefonda Chrome'da oching → ⋮ → «Bosh ekranga qo'shish».
 Ma'lumotlar faqat telefonda saqlanadi, bu repository'ga hech qachon tushmaydi.
 
 `src/index.src.html` — kutubxonalarsiz manba fayl; `index.html` — tayyor, hammasi ichiga joylangan versiya.
+
+## Android ilova (APK)
+`apk/` papkasida Capacitor loyihasi bor. GitHub Actions («APK (Muhāsib)») imzolanmagan APK yig'adi; u GitHub'dan tashqarida saqlanadigan kalit bilan imzolanadi. APK ochiq tarqatilmaydi.

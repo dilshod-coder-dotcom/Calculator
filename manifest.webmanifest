@@ -1,6 +1,6 @@
 {
-  "name": "Calculator — yog'och savdo hisobi",
-  "short_name": "Calculator",
+  "name": "Muhāsib — savdo va qoldiq hisobi",
+  "short_name": "Muhāsib",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

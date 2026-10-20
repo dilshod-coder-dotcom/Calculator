@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Calculator</title>
+<title>Muhāsib</title>
 <meta name="theme-color" content="#1f4d3a">
 <meta name="description" content="Yog'och mahsulotlari savdosini kunma-kun hisoblash va saqlash">
 <link rel="manifest" href="manifest.webmanifest">
@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Calculator">
+<meta name="apple-mobile-web-app-title" content="Muhāsib">
 <style>
 /* Layout: one-column phone app. Sticky spruce top bar, scrolling view, bottom tab bar, bottom sheets for forms.
    Palette: spruce green (brand), pine-resin amber (accent / money), grain tones for photo placeholders. */
@@ -47,8 +47,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--spruce);color:var(--on-spruce);
   padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   display:flex;align-items:center;gap:12px;border-bottom:3px solid var(--pine)}
-.top .logo{width:34px;height:34px;border-radius:9px;flex:none;background:
-  repeating-linear-gradient(0deg,var(--grain1) 0 5px,var(--grain2) 5px 7px);box-shadow:inset 0 0 0 2px rgba(0,0,0,.15);display:grid;place-items:center;color:var(--grain-ink);font-weight:800}
+.top .logo{width:34px;height:34px;border-radius:9px;flex:none;display:block;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
 .top .t{min-width:0;flex:1}
 .top b{display:block;font-size:17px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .top small{display:block;opacity:.75;font-size:12px}
@@ -224,8 +223,8 @@ tfoot td{font-weight:800;background:var(--surface2)}
 </head>
 <body>
 <header class="top">
-  <div class="logo" aria-hidden="true">C</div>
-  <div class="t"><b id="shopName">Calculator</b><small id="topSub">Yog'och savdo hisobi</small></div>
+  <img class="logo" src="/*@@LOGO@@*/" alt="" width="34" height="34">
+  <div class="t"><b id="shopName">Muhāsib</b><small id="topSub"><span lang="ar" dir="rtl">محَاسِب</span> · yog'och savdo hisobi</small></div>
   <span class="pill" id="offPill">Oflayn ishlaydi</span>
 </header>
 
@@ -464,7 +463,7 @@ window.addEventListener('popstate',()=>{if(window.__pendingClose){const f=window
 /* ---------- views ---------- */
 function setView(v){S.view=v;$$('.tabs button').forEach(b=>b.setAttribute('aria-current',b.dataset.v===v?'page':'false'));render();window.scrollTo(0,0)}
 function render(){
-  $('#shopName').textContent=S.meta.shop||'Calculator';
+  $('#shopName').textContent=S.meta.shop||'Muhāsib';
   $('#fab').hidden=!(S.view==='today'||S.view==='products'||S.view==='stock');
   ({today:vToday,products:vProducts,stock:vStock,report:vReport,archive:vArchive})[S.view]();
 }
@@ -598,7 +597,7 @@ async function vArchive(){
     <div class="field"><label for="shopIn">Do'kon nomi (PDF sarlavhasida chiqadi)</label><input class="inp" id="shopIn" value="${esc(S.meta.shop||'')}" placeholder="Masalan: Yog'och savdo, Chilonzor"></div>
     <div class="g2"><button class="btn" type="button" id="bkAll">To'liq zaxira olish</button><label class="btn" for="bkIn">Zaxiradan tiklash</label></div>
     <input type="file" id="bkIn" accept=".json,application/json" hidden>
-    <p class="hint" style="margin:0">Versiya 1.1. Ilova internetsiz ishlaydi. Ma'lumotlar faqat shu telefonda, brauzer xotirasida turadi. Telefonni almashtirsangiz, «To'liq zaxira» faylini yangi telefonda «Zaxiradan tiklash» orqali oching.</p>
+    <p class="hint" style="margin:0">Muhāsib, versiya 1.2. Ilova internetsiz ishlaydi. Ma'lumotlar faqat shu telefonda, brauzer xotirasida turadi. Telefonni almashtirsangiz, «To'liq zaxira» faylini yangi telefonda «Zaxiradan tiklash» orqali oching.</p>
   </div>`;
   storageInfo();
   $$('.mcard').forEach(card=>{
@@ -620,7 +619,7 @@ async function vArchive(){
     };
   });
   $('#shopIn').onchange=async e=>{await setMeta('shop',e.target.value.trim());render();toast('Saqlandi')};
-  $('#bkAll').onclick=async()=>{const blob=backupBlob(S.sales,true,S.moves);await deliver([new File([blob],`Calculator_zaxira_${today()}.json`,{type:'application/json'})],'save');};
+  $('#bkAll').onclick=async()=>{const blob=backupBlob(S.sales,true,S.moves);await deliver([new File([blob],`Muhasib_zaxira_${today()}.json`,{type:'application/json'})],'save');};
   $('#bkIn').onchange=e=>{const f=e.target.files[0];if(f)restore(f);e.target.value=''};
 }
 async function storageInfo(){
@@ -974,7 +973,7 @@ function buildXLSX(list,label,range,mvs){
   const XL=window.XLSX;const wb=XL.utils.book_new();
   const H=['Sana','Hafta kuni','Tovar','Birlik','Dona','Qalinlik (mm)','En (mm)','Uzunlik (m)','Miqdor','Narx (so‘m)','Hisob summa','Yakuniy summa','m³','m²',"To'lov",'Mijoz','Izoh'];
   const rows=list.map(s=>[dmy(s.date),wday(s.date),s.productName,UNITS[s.unit].l,s.n||'',s.t||'',s.w||'',s.l||'',s.qty,s.price,s.calc,s.total,s.m3||0,s.m2||0,PAYS[s.pay||'naqd'],s.client||'',(s.mode==='kuzov'?`Kuzov ${s.a}×${s.b}×${s.c} m. `:'')+(s.note||'')]);
-  const ws=XL.utils.aoa_to_sheet([[`${S.meta.shop||'Calculator'} — savdo: ${label}`],H,...rows]);
+  const ws=XL.utils.aoa_to_sheet([[`${S.meta.shop||'Muhāsib'} — savdo: ${label}`],H,...rows]);
   ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}];
   const first=3,last=rows.length+2;
   rows.forEach((s,i)=>{const r=i+first;ws['K'+r]={t:'n',v:list[i].calc,f:`I${r}*J${r}`};
@@ -1028,7 +1027,7 @@ function buildPDF(list,label,range){
   doc.addFileToVFS('DV-R.ttf',window.FONT_R);doc.addFont('DV-R.ttf','DV','normal');
   doc.addFileToVFS('DV-B.ttf',window.FONT_B);doc.addFont('DV-B.ttf','DV','bold');doc.setFont('DV','normal');
   const W=210,M=14,SPR=[31,77,58],PINE=[185,120,29],INK=[23,32,27],MUT=[91,104,98],LINE=[216,223,217],SOFT=[246,232,207],ROW=[245,247,244];
-  const R=report(list);const shop=S.meta.shop||'Calculator';
+  const R=report(list);const shop=S.meta.shop||'Muhāsib';
   const fit=(txt,maxW,size,style='bold')=>{doc.setFont('DV',style);let s=size;doc.setFontSize(s);while(doc.getTextWidth(txt)>maxW&&s>7){s-=0.5;doc.setFontSize(s)}return s};
   // header band with grain
   doc.setFillColor(...SPR);doc.rect(0,0,W,32,'F');
@@ -1127,11 +1126,26 @@ async function restore(file){
     if(d.shop&&!S.meta.shop)await setMeta('shop',d.shop);
     S.products.sort((a,b)=>(a.order??0)-(b.order??0));
     render();toast(`Tiklandi: ${freshS.length} ta sotuv, ${freshM.length} ta kirim, ${newP.length} ta tovar`);
-  }catch(e){toast("Bu fayl Calculator zaxirasi emas")}
+  }catch(e){toast("Bu fayl Muhāsib zaxirasi emas")}
 }
 
 /* ---------- deliver files ---------- */
+const CAP=window.Capacitor;const NATIVE=!!(CAP&&CAP.isNativePlatform&&CAP.isNativePlatform());
+const plug=n=>(CAP.Plugins&&CAP.Plugins[n])||CAP.registerPlugin(n);
+const b64of=blob=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(blob)});
+async function deliverNative(files,mode){
+  const FS=plug('Filesystem'),SH=plug('Share');const saved=[],uris=[];
+  for(const f of files){
+    const data=await b64of(f);
+    if(mode==='save'){try{await FS.writeFile({path:'Muhasib/'+f.name,data,directory:'DOCUMENTS',recursive:true});saved.push(f.name);continue}catch(e){}}
+    const r=await FS.writeFile({path:f.name,data,directory:'CACHE'});uris.push(r.uri);
+  }
+  if(uris.length){try{await SH.share({title:files.map(f=>f.name).join(', '),files:uris,dialogTitle:'Ulashish'})}catch(e){if(/cancel/i.test(String(e&&e.message)))return false}}
+  if(saved.length)setTimeout(()=>toast(`Saqlandi: Documents/Muhasib/${saved.join(', ')}`),2700);
+  return true;
+}
 async function deliver(files,mode){
+  if(NATIVE)return deliverNative(files,mode);
   if(mode==='share'&&navigator.canShare){
     try{if(navigator.canShare({files})){await navigator.share({files,title:files.map(f=>f.name).join(', ')});return true}}
     catch(e){if(e&&e.name==='AbortError')return false}
@@ -1167,7 +1181,7 @@ window.addEventListener('online',()=>{$('#offPill').textContent='Oflayn ishlaydi
 window.addEventListener('offline',()=>{$('#offPill').textContent='Internetsiz rejim'});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.view==='today'&&S.day!==today()&&S.__lastToday!==today()){S.__lastToday=today();S.day=today();render()}});
 load().then(()=>{S.__lastToday=today();setView('today')});
-if('serviceWorker' in navigator&&/^https?:/.test(location.protocol)){navigator.serviceWorker.register('sw.js').catch(()=>{})}
+if(!NATIVE&&'serviceWorker' in navigator&&/^https?:/.test(location.protocol)){navigator.serviceWorker.register('sw.js').catch(()=>{})}
 window.__calc={calc,S,buildXLSX,buildPDF,report,stockOf};
 })();
 </script>

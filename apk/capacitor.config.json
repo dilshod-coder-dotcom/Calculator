@@ -1,0 +1,6 @@
+{
+  "appId": "uz.muhasib.app",
+  "appName": "Muhāsib",
+  "webDir": "www",
+  "android": { "allowMixedContent": false, "backgroundColor": "#1f4d3a" }
+}
