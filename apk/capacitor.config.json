@@ -2,5 +2,14 @@
   "appId": "uz.muhasib.app",
   "appName": "Muhāsib",
   "webDir": "www",
-  "android": { "allowMixedContent": false, "backgroundColor": "#1f4d3a" }
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#1f4d3a"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_muhasib",
+      "iconColor": "#1F4D3A"
+    }
+  }
 }
