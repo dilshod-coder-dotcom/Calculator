@@ -291,6 +291,12 @@ details summary{cursor:pointer;font-weight:650;color:var(--spruce-2)}
 .cardchip{width:52px;height:36px;border-radius:7px;flex:none;display:grid;place-items:center;font-size:10px;font-weight:800;color:#fff;background:linear-gradient(135deg,#3b5b8f,#203350)}
 .cardchip.uzcard{background:linear-gradient(135deg,#1b6fb5,#0e3f73)}.cardchip.humo{background:linear-gradient(135deg,#2c9b62,#16573a)}.cardchip.visa{background:linear-gradient(135deg,#2b3f9c,#151f57)}.cardchip.mastercard{background:linear-gradient(135deg,#e2683c,#9b2f16)}
 .wpph{background:var(--spruce-2)!important;color:#fff!important}
+.money{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.money>div,.wpst>div{background:var(--surface2);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:1px;min-width:0}
+.money span,.wpst span{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.money b{font-size:16px}.money small,.wpst small{font-size:12px;color:var(--muted)}
+.wpst{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px}
+.wpst span{text-transform:none;letter-spacing:0;font-size:12.5px}
 #toast{position:fixed;left:50%;transform:translateX(-50%) translateY(20px);bottom:calc(var(--tabh) + env(safe-area-inset-bottom,0px) + 80px);z-index:80;
   background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:650;font-size:14px;opacity:0;pointer-events:none;transition:.2s;max-width:calc(100% - 32px);text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%)}
@@ -930,6 +936,20 @@ function periodStock(p,from,to,w=S.wp){const a=stockOf(p,addDays(from,-1),w),b=s
 function stockState(p,st){if(!st)return null;const min=pos(p.minStock);if(st.val<=0)return 'out';if(min&&st.val<=min)return 'low';return 'ok'}
 const STATE_CHIP={out:'<span class="chip nasiya">Tugagan</span>',low:'<span class="chip warn">Kam qoldi</span>',ok:'<span class="chip ok">Bor</span>'};
 function approxPieces(p,st){if(!st||p.stockUnit==='dona'||st.val<=0)return '';const d=measures({unit:p.stockUnit,qty:st.val},p).dona;return d?`≈ ${sp(Math.floor(d+1e-6))} dona`:''}
+// sale price for one stock unit (converted from another priced unit through the product's dimensions)
+function stockPrice(p){
+  if(!tracked(p))return 0;const u=p.stockUnit;const d=pos(p.prices&&p.prices[u]);if(d)return d;
+  for(const k of Object.keys(p.prices||{})){const pk=pos(p.prices[k]);if(!pk||!UNITS[k])continue;const amt=toUnit({unit:u,qty:1,mode:'direct'},k,p);if(amt)return pk*amt}
+  return 0;
+}
+const stockValue=(p,w=S.wp)=>{const st=stockOf(p,null,w);return st?Math.round(Math.max(0,st.val)*stockPrice(p)):0};
+function soldOf(p,from,to,w=S.wp){let qty=0,sum=0,n=0;
+  S.sales.forEach(s=>{if(s.productId!==p.id||!inWp(s,w)||s.date<from||s.date>to)return;n++;sum+=s.total;if(tracked(p)){const x=toUnit(s,p.stockUnit,p);if(x)qty+=x}});
+  return {qty:r4(qty),sum:Math.round(sum),n}}
+function wpStockSummary(from,to){
+  return S.wps.map(w=>({id:w.id,name:w.name,manager:w.manager,value:S.products.filter(tracked).reduce((a,p)=>a+stockValue(p,w.id),0),
+    sold:Math.round(S.sales.filter(s=>wpOf(s)===w.id&&s.date>=from&&s.date<=to).reduce((a,s)=>a+s.total,0))}));
+}
 async function foldMonth(k){
   const ch=new Set();
   S.products.forEach(p=>{if(!tracked(p))return;
@@ -1046,7 +1066,7 @@ function priceLine(p){
 function vProducts(){
   $('#view').innerHTML=`<div class="h">Tovarlar (${S.products.length})${tracked&&S.wp!=='all'&&multiWp()?' · qoldiq: '+esc(wpName(S.wp)):''}</div>
   <div class="pgrid">${S.products.map(p=>`<button class="ptile" type="button" data-p="${p.id}">${thumbHTML(p,'img')}
-    <div class="bd"><div class="nm">${esc(p.name)}</div>${hasDims(p)?`<div class="pr num">${fq(p.t,1)}×${fq(p.w,1)} mm × ${fq(p.l,2)} m</div>`:''}<div class="pr">${priceLine(p)}</div>${tracked(p)?(()=>{const st=stockOf(p);return `<div class="pr">Qoldiq: <b class="num ${st.val<0?'qneg':''}">${fqu(st.val,p.stockUnit)}</b></div>`})():''}</div></button>`).join('')}
+    <div class="bd"><div class="nm">${esc(p.name)}</div>${hasDims(p)?`<div class="pr num">${fq(p.t,1)}×${fq(p.w,1)} mm × ${fq(p.l,2)} m</div>`:''}<div class="pr">${priceLine(p)}</div>${tracked(p)?(()=>{const st=stockOf(p);return `<div class="pr">Qoldiq: <b class="num ${st.val<0?'qneg':''}">${fqu(st.val,p.stockUnit)}</b>${stockPrice(p)?` · ${sp(stockValue(p))} so'm`:''}</div>`})():''}</div></button>`).join('')}
     <button class="ptile add" type="button" id="addP"><span>+</span>Tovar qo'shish</button></div>
   <p class="hint">Tovarni bosib rasm, o'lcham (qalinlik × en × uzunlik) va narxlarni kiriting. O'lcham kiritilsa, donalab sotuvda m³ va m² o'zi hisoblanadi.</p>`;
   $$('[data-p]').forEach(b=>b.onclick=()=>productSheet(prod(b.dataset.p)));
@@ -1062,7 +1082,7 @@ function vMore(){
   <div class="card" style="display:flex;flex-direction:column;gap:12px">
     <div class="field"><label for="shopIn">Tadbirkor / biznes nomi (hujjatlarda chiqadi)</label><input class="inp" id="shopIn" value="${esc(S.meta.shop||'')}" placeholder="Masalan: Karimov Yog‘och savdo"></div>
     <div id="mySig"></div>
-    <p class="hint" style="margin:0">Muhāsib 1.3 · ilova internetsiz ishlaydi, ma’lumotlar faqat shu telefonda saqlanadi.</p>
+    <p class="hint" style="margin:0">Muhāsib 1.4 · ilova internetsiz ishlaydi, ma’lumotlar faqat shu telefonda saqlanadi.</p>
   </div>`;
   $$('[data-mv2]').forEach(b=>b.onclick=()=>setView(b.dataset.mv2));
   $('#shopIn').onchange=async e=>{await setMeta('shop',e.target.value.trim());render();toast('Saqlandi')};
@@ -1224,9 +1244,9 @@ function vReport(){
   ${R.byD.map(d=>`<tr><td>${dmy(d.date)} <span class="muted">${wday(d.date).slice(0,3)}</span></td><td class="r">${d.n}</td><td class="r">${fq(d.m3,3)}</td><td class="r">${fq(d.m2,2)}</td><td class="r">${sp(Math.round(d.sum))}</td></tr>`).join('')}
   </tbody></table></div>`:`<div class="empty"><b>Bu davrda sotuv yo'q</b>Boshqa davrni tanlang.</div>`}
   ${PS.length?`<div class="h">Ombor qoldig'i</div>
-  <div class="tw"><table><thead><tr><th>Tovar</th><th class="r">Boshida</th><th class="r">Kirim</th><th class="r">Sotildi</th><th class="r">Tuzatish</th><th class="r">Oxirida</th></tr></thead><tbody>
-  ${PS.map(r=>{const d=UNITS[r.u].d||2;return `<tr><td>${esc(r.p.name)} <span class="muted">${UNITS[r.u].l}</span></td><td class="r">${fq(r.open,d)}</td><td class="r">${r.inn?'+'+fq(r.inn,d):'–'}</td><td class="r">${r.out?'−'+fq(r.out,d):'–'}</td><td class="r">${r.adj?(r.adj>0?'+':'')+fq(r.adj,d):'–'}</td><td class="r ${r.close<0?'qneg':''}"><b>${fq(r.close,d)}</b></td></tr>`}).join('')}
-  </tbody></table></div>`:''}`;
+  <div class="tw"><table><thead><tr><th>Tovar</th><th class="r">Boshida</th><th class="r">Kirim</th><th class="r">Sotildi</th><th class="r">Tuzatish</th><th class="r">Oxirida</th><th class="r">Qiymati</th><th class="r">Sotildi (so‘m)</th></tr></thead><tbody>
+  ${PS.map(r=>{const d=UNITS[r.u].d||2;const pr=stockPrice(r.p);return `<tr><td>${esc(r.p.name)} <span class="muted">${UNITS[r.u].l}</span></td><td class="r">${fq(r.open,d)}</td><td class="r">${r.inn?'+'+fq(r.inn,d):'–'}</td><td class="r">${r.out?'−'+fq(r.out,d):'–'}</td><td class="r">${r.adj?(r.adj>0?'+':'')+fq(r.adj,d):'–'}</td><td class="r ${r.close<0?'qneg':''}"><b>${fq(r.close,d)}</b></td><td class="r">${pr?sp(Math.round(Math.max(0,r.close)*pr)):'–'}</td><td class="r">${sp(soldOf(r.p,from,to).sum)}</td></tr>`}).join('')}
+  </tbody><tfoot><tr><td colspan="6">Jami</td><td class="r">${sp(PS.reduce((a,r)=>a+Math.round(Math.max(0,r.close)*stockPrice(r.p)),0))}</td><td class="r">${sp(PS.reduce((a,r)=>a+soldOf(r.p,from,to).sum,0))}</td></tr></tfoot></table></div>`:''}`;
   $$('[data-pr]').forEach(b=>b.onclick=()=>{S.rep.preset=b.dataset.pr;if(b.dataset.pr==='custom'&&!S.rep.from){S.rep.from=from;S.rep.to=to}render()});
   const rf=$('#rFrom'),rt=$('#rTo');
   if(rf)rf.onchange=()=>{S.rep.from=rf.value;render()};if(rt)rt.onchange=()=>{S.rep.to=rt.value;render()};
@@ -1309,22 +1329,42 @@ function moveItem(m){
 }
 function vStock(){
   const tr=S.products.filter(tracked),un=S.products.filter(p=>!tracked(p));
-  const rows=tr.map(p=>{const st=stockOf(p);return {p,st,state:stockState(p,st)}});
-  const nLow=rows.filter(r=>r.state!=='ok').length;
+  const per=S.stPer||'month';const [from,to,plabel]=periodOf(per);
+  const rows=tr.map(p=>{const st=stockOf(p);return {p,st,state:stockState(p,st),price:stockPrice(p),value:stockValue(p),sold:soldOf(p,from,to)}});
+  const nLow=rows.filter(r=>r.state!=='ok').length,noPrice=rows.filter(r=>!r.price).length;
+  const totVal=rows.reduce((a,r)=>a+r.value,0);
+  const soldAll=Math.round(S.sales.filter(s=>inWp(s)&&s.date>=from&&s.date<=to).reduce((a,s)=>a+s.total,0));
+  const m3=rows.reduce((a,r)=>a+Math.max(0,(measures({unit:r.p.stockUnit,qty:Math.max(0,r.st.val)},r.p).m3)||(r.p.stockUnit==='m3'?Math.max(0,r.st.val):0)),0);
+  const WS=S.wp==='all'&&multiWp()?wpStockSummary(from,to):null;
+  const PL=[['today','Bugun'],['month','Bu oy'],['year','Bu yil']];
   const mv=S.moves.filter(m=>inWp(m)).sort((a,b)=>a.date===b.date?b.ts-a.ts:(a.date<b.date?1:-1)).slice(0,40);
-  $('#view').innerHTML=`<div class="h">Ombordagi qoldiq · ${esc(scopeLabel())}</div>
-  ${rows.length?`<div class="card row"><div class="grow"><b>${rows.length} ta tovar hisobda</b><div class="hint">Sotuv yozilganda qoldiq o'zi kamayadi. Tovar kelsa «+ Kirim» bosing.</div></div>${nLow?`<span class="chip warn">${nLow} ta kam</span>`:'<span class="chip ok">Hammasi bor</span>'}</div>
-  ${rows.map(({p,st,state})=>`<div class="card stk ${state==='ok'?'':state}">
+  $('#view').innerHTML=`<section class="sum" aria-label="Ombor qiymati">
+    <div><div class="lab">Ombordagi tovar qiymati · ${esc(scopeLabel())}</div><div class="big num">${sp(totVal)}<small>so'm</small></div></div>
+    <div class="grid num"><div><span class="lab">Sotildi (${({today:'bugun',month:'oy',year:'yil'})[per]})</span><b>${sp(soldAll)}</b></div><div><span class="lab">Hajm</span><b>${fq(m3,2)} m³</b></div><div><span class="lab">Tovar</span><b>${rows.length} ta</b></div></div>
+    ${noPrice?`<div class="pays"><span class="n">${noPrice} ta tovarda narx yo‘q — qiymatga qo‘shilmadi</span></div>`:''}
+  </section>
+  <div class="row"><span class="lbl">Sotilgani:</span><div class="seg" role="group" aria-label="Sotilgan davr">${PL.map(([k,v])=>`<button type="button" data-sper="${k}" aria-pressed="${per===k}">${v}</button>`).join('')}</div></div>
+  ${WS?`<div class="h">Ish joylari bo‘yicha</div><div class="tw"><table><thead><tr><th>Ish joyi</th><th class="r">Omborda (so‘m)</th><th class="r">Sotildi (so‘m)</th></tr></thead><tbody>
+    ${WS.map(w=>`<tr><td>${esc(w.name)}${w.manager?` <span class="muted">${esc(w.manager)}</span>`:''}</td><td class="r">${sp(w.value)}</td><td class="r">${sp(w.sold)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td>Jami</td><td class="r">${sp(WS.reduce((a,w)=>a+w.value,0))}</td><td class="r">${sp(WS.reduce((a,w)=>a+w.sold,0))}</td></tr></tfoot></table></div>`:''}
+  <div class="h">Ombordagi qoldiq · ${esc(scopeLabel())}</div>
+  ${rows.length?`<div class="card row"><div class="grow"><b>${rows.length} ta tovar hisobda</b><div class="hint">Sotuv yozilganda qoldiq o'zi kamayadi. Qiymat sotuv narxida hisoblanadi.</div></div>${nLow?`<span class="chip warn">${nLow} ta kam</span>`:'<span class="chip ok">Hammasi bor</span>'}</div>
+  ${rows.map(({p,st,state,price,value,sold})=>`<div class="card stk ${state==='ok'?'':state}">
     <div class="top2">${thumbHTML(p)}<div class="grow" style="min-width:0"><b>${esc(p.name)}</b>
       <div class="qv num ${st.val<0?'qneg':''}">${fq(st.val,UNITS[p.stockUnit].d||2)}<small>${UNITS[p.stockUnit].l}</small></div>
-      <div class="hint num">${[approxPieces(p,st),pos(p.minStock)?'chegara: '+fqu(p.minStock,p.stockUnit):''].filter(Boolean).join(' · ')}</div>
-      ${S.wp==='all'&&multiWp()?`<div class="hint num">${S.wps.map(w=>esc(w.name)+': '+fqu(stockOf(p,null,w.id).val,p.stockUnit)).join(' · ')}</div>`:''}</div>${STATE_CHIP[state]}</div>
+      <div class="hint num">${[approxPieces(p,st),pos(p.minStock)?'chegara: '+fqu(p.minStock,p.stockUnit):''].filter(Boolean).join(' · ')}</div></div>${STATE_CHIP[state]}</div>
+    <div class="money">
+      <div><span>Omborda</span><b class="num">${price?sp(value)+" so'm":'—'}</b><small class="num">${price?`1 ${UNITS[p.stockUnit].l} = ${sp(Math.round(price))}`:'<span class="bad">narx kiriting</span>'}</small></div>
+      <div><span>Sotildi · ${PL.find(x=>x[0]===per)[1].toLowerCase()}</span><b class="num">${sp(sold.sum)} so'm</b><small class="num">${sold.qty?fqu(sold.qty,p.stockUnit)+' · ':''}${sold.n} ta sotuv</small></div>
+    </div>
+    ${S.wp==='all'&&multiWp()?`<div class="wpst">${S.wps.map(w=>{const s2=stockOf(p,null,w.id);return `<div><span>${esc(w.name)}</span><b class="num ${s2.val<0?'qneg':''}">${fqu(s2.val,p.stockUnit)}</b><small class="num">${price?sp(stockValue(p,w.id))+" so'm":''}</small></div>`}).join('')}</div>`:''}
     ${st.skip?`<div class="hint">${st.skip} ta yozuv boshqa birlikda bo'lgani uchun hisobga kirmadi. Tovarga o'lcham kiriting (⚙).</div>`:''}
     <div class="acts"><button class="btn pri" type="button" data-kirim="${p.id}">+ Kirim</button><button class="btn" type="button" data-adj="${p.id}">Sanab tuzatish</button><button class="btn" type="button" data-set="${p.id}" aria-label="Sozlash">⚙</button></div></div>`).join('')}`:
   `<div class="empty"><b>Qoldiq hali hisoblanmayapti</b>Pastdagi tovarlardan birini tanlab «Hisobni boshlash»ni bosing va hozir omborda qancha borligini yozing. Shundan keyin har bir sotuv qoldiqdan o'zi ayriladi.</div>`}
   ${un.length?`<div class="h">Qoldig'i hisoblanmaydigan tovarlar</div><div class="card">${un.map(p=>`<div class="untr">${thumbHTML(p,'thumb')}<b class="grow">${esc(p.name)}</b><button class="btn" type="button" data-start="${p.id}">Hisobni boshlash</button></div>`).join('')}</div>`:''}
   <div class="h">Kirim va tuzatishlar</div>
   ${mv.length?`<div class="list">${mv.map(moveItem).join('')}</div>`:`<div class="empty">Hali kirim yozilmagan.</div>`}`;
+  $$('[data-sper]').forEach(b=>b.onclick=()=>{S.stPer=b.dataset.sper;render()});
   $$('[data-kirim]').forEach(b=>b.onclick=()=>moveSheet(null,b.dataset.kirim));
   $$('[data-adj]').forEach(b=>b.onclick=()=>adjSheet(prod(b.dataset.adj)));
   $$('[data-set],[data-start]').forEach(b=>b.onclick=()=>{const p=prod(b.dataset.set||b.dataset.start);openSheet('Qoldiq sozlamasi',api=>setupStep(api,p,null))});
@@ -2229,12 +2269,22 @@ function buildXLSX(list,label,range,mvs){
   XL.utils.book_append_sheet(wb,ws3,'Kunlar');
   const PS=S.products.filter(tracked).map(p=>periodStock(p,range[0],range[1]));
   if(PS.length){
-    const om=[['Tovar','Birlik',`Boshida (${dmy(range[0])})`,'Kirim','Sotildi','Tuzatish',`Oxirida (${dmy(range[1])})`,'Hozir','Holat'],
-      ...PS.map(r=>[r.p.name,UNITS[r.u].l,r.open,r.inn,r.out,r.adj,r.close,r.now,({out:'Tugagan',low:'Kam qoldi',ok:'Bor'})[stockState(r.p,{val:r.now})]])];
-    const ws4=XL.utils.aoa_to_sheet(om);
-    PS.forEach((r,i)=>{const n=i+2;ws4['G'+n]={t:'n',v:r.close,f:`C${n}+D${n}-E${n}+F${n}`}});
-    ws4['!cols']=[24,7,15,10,10,10,15,10,11].map(w=>({wch:w}));
+    const om=[['Tovar','Birlik',`Boshida (${dmy(range[0])})`,'Kirim','Sotildi','Tuzatish',`Oxirida (${dmy(range[1])})`,'Hozir','Holat','Narx (1 birlik, so‘m)','Qiymati oxirida (so‘m)','Sotildi (so‘m)'],
+      ...PS.map(r=>{const pr=Math.round(stockPrice(r.p));return [r.p.name,UNITS[r.u].l,r.open,r.inn,r.out,r.adj,r.close,r.now,({out:'Tugagan',low:'Kam qoldi',ok:'Bor'})[stockState(r.p,{val:r.now})],pr||'',pr?Math.round(Math.max(0,r.close)*pr):'',soldOf(r.p,range[0],range[1]).sum]})];
+    const ws4=XL.utils.aoa_to_sheet(om);const n4=om.length;
+    PS.forEach((r,i)=>{const n=i+2;ws4['G'+n]={t:'n',v:r.close,f:`C${n}+D${n}-E${n}+F${n}`};const pr=Math.round(stockPrice(r.p));if(pr)ws4['K'+n]={t:'n',v:Math.round(Math.max(0,r.close)*pr),f:`MAX(G${n},0)*J${n}`}});
+    ws4['A'+(n4+1)]={t:'s',v:'JAMI'};
+    ws4['K'+(n4+1)]={t:'n',v:om.slice(1).reduce((a,r)=>a+(+r[10]||0),0),f:`SUM(K2:K${n4})`};ws4['L'+(n4+1)]={t:'n',v:om.slice(1).reduce((a,r)=>a+(+r[11]||0),0),f:`SUM(L2:L${n4})`};
+    ws4['!ref']=XL.utils.encode_range({s:{r:0,c:0},e:{r:n4,c:11}});
+    ws4['!cols']=[24,7,15,10,10,10,15,10,11,16,18,15].map(w=>({wch:w}));
     XL.utils.book_append_sheet(wb,ws4,'Ombor qoldig\'i');
+    if(S.wp==='all'&&multiWp()){
+      const ow=[['Ish joyi','Tovar','Birlik','Qoldiq','Narx (so‘m)','Qiymati (so‘m)','Sotildi (so‘m)']];
+      S.wps.forEach(w=>S.products.filter(tracked).forEach(p=>{const st=stockOf(p,null,w.id);const pr=Math.round(stockPrice(p));ow.push([w.name,p.name,UNITS[p.stockUnit].l,st.val,pr||'',pr?Math.round(Math.max(0,st.val)*pr):'',soldOf(p,range[0],range[1],w.id).sum])}));
+      const WS=wpStockSummary(range[0],range[1]);ow.push([]);ow.push(['Ish joyi','','','','','Ombordagi qiymat (so‘m)','Sotildi (so‘m)']);WS.forEach(w=>ow.push([w.name,'','','','',w.value,w.sold]));
+      ow.push(['JAMI','','','','',WS.reduce((a,w)=>a+w.value,0),WS.reduce((a,w)=>a+w.sold,0)]);
+      const ws8=XL.utils.aoa_to_sheet(ow);ws8['!cols']=[20,22,7,10,13,16,15].map(w=>({wch:w}));XL.utils.book_append_sheet(wb,ws8,'Ombor (ish joylari)');
+    }
   }
   if(mvs&&mvs.length){
     const kr=[['Sana','Tovar','Turi','Birlik','Dona','Miqdor','m³','Tannarx (so\u2018m)','Izoh'],
@@ -2327,11 +2377,22 @@ function buildPDF(list,label,range){
   if(PS.length){
     if(y>245){doc.addPage();y=20}
     y=title("Ombor qoldig'i",y);
-    doc.autoTable({...base,startY:y,head:[['Tovar','Birlik','Boshida','Kirim','Sotildi','Tuzatish','Oxirida']],
-      body:PS.map(r=>{const d=UNITS[r.u].d||2;return [r.p.name,UNITS[r.u].l,fq(r.open,d),r.inn?'+'+fq(r.inn,d):'–',r.out?'−'+fq(r.out,d):'–',r.adj?(r.adj>0?'+':'')+fq(r.adj,d):'–',fq(r.close,d)]}),
-      columnStyles:{0:{fontStyle:'bold'},2:{halign:'right'},3:{halign:'right'},4:{halign:'right'},5:{halign:'right'},6:{halign:'right',fontStyle:'bold'}},
-      didParseCell:d=>{if(d.section==='body'&&d.column.index===6){const r=PS[d.row.index];const st=stockState(r.p,{val:r.close});if(st==='out')d.cell.styles.textColor=[178,58,42];else if(st==='low')d.cell.styles.textColor=[154,93,18]}}});
+    const val=r=>Math.round(Math.max(0,r.close)*stockPrice(r.p));
+    doc.autoTable({...base,startY:y,head:[['Tovar','Birlik','Boshida','Kirim','Sotildi','Tuzatish','Oxirida','Qiymati','Sotildi (so‘m)']],
+      body:PS.map(r=>{const d=UNITS[r.u].d||2;return [r.p.name,UNITS[r.u].l,fq(r.open,d),r.inn?'+'+fq(r.inn,d):'–',r.out?'−'+fq(r.out,d):'–',r.adj?(r.adj>0?'+':'')+fq(r.adj,d):'–',fq(r.close,d),stockPrice(r.p)?sp(val(r)):'–',sp(soldOf(r.p,range[0],range[1]).sum)]}),
+      foot:[['Jami','','','','','','',sp(PS.reduce((a,r)=>a+val(r),0)),sp(PS.reduce((a,r)=>a+soldOf(r.p,range[0],range[1]).sum,0))]],
+      styles:{...base.styles,fontSize:8.2},headStyles:{...base.headStyles,fontSize:7.8},
+      columnStyles:{0:{fontStyle:'bold'},2:{halign:'right'},3:{halign:'right'},4:{halign:'right'},5:{halign:'right'},6:{halign:'right',fontStyle:'bold'},7:{halign:'right'},8:{halign:'right'}},
+      didParseCell:d=>{if(d.section==='foot'&&d.column.index>=7)d.cell.styles.halign='right';if(d.section==='body'&&d.column.index===6){const r=PS[d.row.index];const st=stockState(r.p,{val:r.close});if(st==='out')d.cell.styles.textColor=[178,58,42];else if(st==='low')d.cell.styles.textColor=[154,93,18]}}});
     y=doc.lastAutoTable.finalY+10;
+    if(S.wp==='all'&&multiWp()){
+      if(y>255){doc.addPage();y=20}
+      y=title("Ish joylari: ombor va sotuv",y);const WS=wpStockSummary(range[0],range[1]);
+      doc.autoTable({...base,startY:y,head:[['Ish joyi','Boshqaruvchi','Ombordagi qiymat','Sotildi (so‘m)']],body:WS.map(w=>[w.name,w.manager||'',sp(w.value),sp(w.sold)]),
+        foot:[['Jami','',sp(WS.reduce((a,w)=>a+w.value,0)),sp(WS.reduce((a,w)=>a+w.sold,0))]],
+        columnStyles:{0:{fontStyle:'bold'},2:{halign:'right'},3:{halign:'right',fontStyle:'bold'}},didParseCell:d=>{if(d.section==='foot'&&d.column.index>=2)d.cell.styles.halign='right'}});
+      y=doc.lastAutoTable.finalY+10;
+    }
   }
   // details
   if(!list.length)y=y; else if(y>240){doc.addPage();y=20}
@@ -2571,7 +2632,7 @@ load().then(()=>{S.__lastToday=today();setView('today');rescheduleReminders();
   if(NATIVE){try{plug('LocalNotifications').addListener('localNotificationActionPerformed',ev=>{const id=ev&&ev.notification&&ev.notification.extra&&ev.notification.extra.debtId;const d=S.debts.find(x=>x.id===id);if(d){setView('nasiya');debtView(d)}})}catch(e){}}
 });
 if(!NATIVE&&'serviceWorker' in navigator&&/^https?:/.test(location.protocol)){navigator.serviceWorker.register('sw.js').catch(()=>{})}
-window.__calc={calc,S,buildXLSX,buildPDF,report,stockOf,debtLeft,debtState,instRows,buildContractPDF,discAmount,normPhone,scanCardNumber,smsAmount,luhn};
+window.__calc={stockPrice,stockValue,soldOf,wpStockSummary,calc,S,buildXLSX,buildPDF,report,stockOf,debtLeft,debtState,instRows,buildContractPDF,discAmount,normPhone,scanCardNumber,smsAmount,luhn};
 })();
 </script>
 </body>

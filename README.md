@@ -10,7 +10,7 @@ Telefonda Chrome'da oching → ⋮ → «Bosh ekranga qo'shish».
 - Mijoz, haydovchi, kafil: so'nggi qo'ng'iroqlar yoki kontaktlardan tanlash (APK)
 - Karta to'lovi: qaysi kartangizga tushgani, mijoz kartasi (skaner), chek rasmi yoki SMS tasdig'i
 - Nasiya: shartnoma (jadval, xaridor, kafil, surat, imzolar), 3 kun oldin eslatma, «halol bo'ldi / bo'lmadi», muddatni cho'zish, shartnoma va dalolatnoma PDF
-- Qoldiq: kirim, sotuvdan avtomatik ayirish, sanab tuzatish, kam qolganda ogohlantirish
+- Qoldiq: kirim, sotuvdan avtomatik ayirish, sanab tuzatish, kam qolganda ogohlantirish; har bir tovar va ish joyi bo'yicha ombordagi qiymat va sotilgan summa
 - Hisobot: kunlik, oylik, yillik; Excel (.xlsx) va PDF; oy yopish va zaxira; boshqaruvchi telefonidan faylni qabul qilish
 
 Ma'lumotlar faqat telefonda saqlanadi, bu repository'ga hech qachon tushmaydi.
