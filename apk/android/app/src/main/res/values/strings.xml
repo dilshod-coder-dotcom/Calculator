@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Boshqa sotuvlar</string>
+    <string name="title_activity_main">Boshqa sotuvlar daftari</string>
+    <string name="package_name">uz.boshqasotuvlar.app</string>
+    <string name="custom_url_scheme">uz.boshqasotuvlar.app</string>
+</resources>

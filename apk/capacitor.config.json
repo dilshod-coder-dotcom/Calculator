@@ -1,0 +1,9 @@
+{
+  "appId": "uz.boshqasotuvlar.app",
+  "appName": "Boshqa sotuvlar",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#1f4d3a"
+  }
+}
