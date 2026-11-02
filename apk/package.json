@@ -1,7 +1,7 @@
 {
   "name": "boshqa-sotuvlar-apk",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Boshqa sotuvlar daftari Android app (Capacitor wrapper around the offline web app)",
   "dependencies": {
     "@capacitor/android": "6.2.0",

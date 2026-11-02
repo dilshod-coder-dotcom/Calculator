@@ -196,7 +196,7 @@ input[type=file]{padding:8px}
 <script>window.FONT_R="/*@@FONT_R@@*/";window.FONT_B="/*@@FONT_B@@*/";</script>
 <script>
 (()=>{'use strict';
-const VERSION='1.0';
+const VERSION='1.1';
 /* ---------- yordamchilar ---------- */
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -261,17 +261,23 @@ const scopeLabel=()=>S.wp==='all'?(multiWp()?`Barcha ish joylari (${S.wps.length
 const saveWps=()=>setMeta('workplaces',S.wps);
 const item=id=>S.items.find(i=>i.id===id);
 const itemName=s=>{const i=item(s.item);return i?i.name:(s.itemName||'—')};
-const itemUnit=s=>{const i=item(s.item);return i?i.unit:(s.unit||'')};
+const uList=i=>(i&&Array.isArray(i.units))?i.units:[];
+const firstU=i=>(uList(i)[0]||{u:''}).u;
+const uOf=(i,u)=>uList(i).find(x=>x.u===u)||{u,price:0,min:0};
+const itemUnit=s=>s.unit||firstU(item(s.item));
+const moveUnit=m=>m.unit||firstU(item(m.item));
+const tName=(i,u)=>uList(i).length>1?`${i.name} · ${u}`:i.name;
 const tracked=()=>S.items.filter(i=>i.track);
 
 /* ---------- hisob ---------- */
-function stock(wp,itemId,exceptSale){
+function stock(wp,itemId,unit,exceptSale){
   let q=0;
-  for(const m of S.moves)if(m.wp===wp&&m.item===itemId)q+=m.qty;
-  for(const s of S.sales)if(s.wp===wp&&s.item===itemId&&s.src==='ombor'&&s.id!==exceptSale)q-=s.qty;
+  for(const m of S.moves)if(m.wp===wp&&m.item===itemId&&moveUnit(m)===unit)q+=m.qty;
+  for(const s of S.sales)if(s.wp===wp&&s.item===itemId&&itemUnit(s)===unit&&s.src==='ombor'&&s.id!==exceptSale)q-=s.qty;
   return r3(q);
 }
-const stockAll=id=>r3(S.wps.reduce((a,w)=>a+stock(w.id,id),0));
+const stockAll=(id,u)=>r3(S.wps.reduce((a,w)=>a+stock(w.id,id,u),0));
+const trackedRows=()=>tracked().flatMap(i=>uList(i).map(x=>({i,u:x.u,min:x.min||0,price:x.price||0})));
 const total=s=>Math.round(s.qty*s.price);
 const paidOf=s=>s.pay==='nasiya'?(s.paid||0)+(s.payments||[]).reduce((a,p)=>a+p.amount,0):total(s);
 const debtOf=s=>s.pay==='nasiya'?Math.max(0,total(s)-paidOf(s)):0;
@@ -386,40 +392,40 @@ const VIEWS={
     return html;
   },
   ombor(){
-    const tr=tracked();
-    let html=`<p class="note">Faqat «omborda sanaladi» belgilangan narsalar. Ombordan sotilganda qoldiqdan o‘zi ayiriladi; to‘g‘ridan-to‘g‘ri sotuv qoldiqqa tegmaydi.</p>`;
+    const tr=trackedRows();
+    let html=`<p class="note">Faqat «omborda sanaladi» belgilangan narsalar. Har bir birlik alohida sanaladi: qop alohida, kub alohida. Ombordan sotilganda qoldiqdan o‘zi ayiriladi; to‘g‘ridan-to‘g‘ri sotuv qoldiqqa tegmaydi.</p>`;
     if(!tr.length)return html+`<div class="card empty">Omborda sanaladigan narsa yo‘q. «Narsalar» bo‘limida narsaga «Omborda sanaladi»ni yoqing.</div>`;
     if(S.wp==='all'){
       html+=`<div class="h2">Qoldiq — ish joylari bo‘yicha</div><div class="card tablewrap"><table class="num"><thead><tr><th>Narsa</th>${S.wps.map(w=>`<th class="r">${esc(w.name)}</th>`).join('')}<th class="r">Jami</th></tr></thead><tbody>`+
-        tr.map(i=>`<tr><td>${esc(i.name)}</td>${S.wps.map(w=>{const q=stock(w.id,i.id);return `<td class="r ${q<=0?'zero':q<(i.min||0)?'low':''}">${fq(q)}</td>`}).join('')}<td class="r"><b>${fq(stockAll(i.id))}</b> ${esc(i.unit)}</td></tr>`).join('')+
+        tr.map(r=>`<tr><td>${esc(tName(r.i,r.u))}</td>${S.wps.map(w=>{const q=stock(w.id,r.i.id,r.u);return `<td class="r ${q<=0?'zero':q<r.min?'low':''}">${fq(q)}</td>`}).join('')}<td class="r"><b>${fq(stockAll(r.i.id,r.u))}</b> ${esc(r.u)}</td></tr>`).join('')+
         `</tbody></table></div><p class="note">Kirim yoki sanash uchun yuqoridan ish joyini tanlang.</p>`;
     }else{
       html+=`<div class="h2">${esc(wpName(S.wp))} — qoldiq</div><div class="card">`+
-        tr.map(i=>{const q=stock(S.wp,i.id);const cls=q<=0?'zero':q<(i.min||0)?'low':'';
-          return `<div class="stockitem"><div><div style="font-weight:600">${esc(i.name)}</div>${cls==='low'?`<div class="note" style="color:var(--warn)">Kam qoldi (chegara ${fq(i.min)} ${esc(i.unit)})</div>`:cls==='zero'?`<div class="note" style="color:var(--danger)">${q<0?'Minusda — kirim yozilmagan bo‘lishi mumkin':'Tugagan'}</div>`:''}</div>
-          <div class="q num ${cls}">${fq(q)} <span class="note">${esc(i.unit)}</span></div>
-          <div class="btnrow"><button class="btn sm" type="button" data-kirim="${i.id}">+ Kirim</button><button class="btn sm" type="button" data-sanash="${i.id}">Sanash</button></div></div>`}).join('')+`</div>`;
+        tr.map(r=>{const q=stock(S.wp,r.i.id,r.u);const cls=q<=0?'zero':q<r.min?'low':'';const key=esc(r.i.id+'|'+r.u);
+          return `<div class="stockitem"><div><div style="font-weight:600">${esc(tName(r.i,r.u))}</div>${cls==='low'?`<div class="note" style="color:var(--warn)">Kam qoldi (chegara ${fq(r.min)} ${esc(r.u)})</div>`:cls==='zero'?`<div class="note" style="color:var(--danger)">${q<0?'Minusda — kirim yozilmagan bo‘lishi mumkin':'Tugagan'}</div>`:''}</div>
+          <div class="q num ${cls}">${fq(q)} <span class="note">${esc(r.u)}</span></div>
+          <div class="btnrow"><button class="btn sm" type="button" data-kirim="${key}">+ Kirim</button><button class="btn sm" type="button" data-sanash="${key}">Sanash</button></div></div>`}).join('')+`</div>`;
     }
     const ev=[...S.moves.filter(m=>inScope(m.wp)).map(m=>({...m,kind:m.type})),
-              ...S.sales.filter(s=>s.src==='ombor'&&inScope(s.wp)).map(s=>({id:s.id,date:s.date,ts:s.ts,wp:s.wp,item:s.item,qty:-s.qty,kind:'sotuv',note:s.buyer,sale:1}))]
+              ...S.sales.filter(s=>s.src==='ombor'&&inScope(s.wp)).map(s=>({id:s.id,date:s.date,ts:s.ts,wp:s.wp,item:s.item,unit:itemUnit(s),qty:-s.qty,kind:'sotuv',note:s.buyer,sale:1}))]
       .sort(byDate);
     if(!ev.length)return html;
     const shown=S.logAll?ev:ev.slice(0,15);
     html+=`<div class="h2">Ombor harakatlari</div><div class="card list">`+shown.map(m=>{
-      const it=item(m.item)||{name:'—',unit:'',price:0};let lab,cls;
+      const it=item(m.item)||{name:'—',units:[]},U=moveUnit(m),pr=uOf(it,U).price;let lab,cls;
       if(m.kind==='kirim'){lab='Kirim';cls='p-om'}else if(m.kind==='sotuv'){lab='Sotuv';cls='p-wp'}
       else{lab=m.qty<0?'Kamomad':m.qty>0?'Ortiqcha':'Sanash: to‘g‘ri';cls=m.qty<0?'p-bad':m.qty>0?'p-tg':'p-done'}
-      const extra=m.kind==='sanash'?`Hisobda ${fq(m.expected)}, sanaldi ${fq(m.actual)}${m.qty<0&&it.price?` · ≈ ${money(-m.qty*it.price)}`:''}${m.note?' · '+esc(m.note):''}`:esc(m.note||'');
-      return `<button class="row" type="button" ${m.sale?`data-sale="${m.id}"`:`data-move="${m.id}"`}><span class="t">${esc(it.name)}</span><span class="s num" style="color:${m.qty<0?'var(--danger)':m.qty>0?'var(--ok)':'var(--muted)'}">${m.qty>0?'+':''}${fq(m.qty)} ${esc(it.unit)}</span>
+      const extra=m.kind==='sanash'?`Hisobda ${fq(m.expected)}, sanaldi ${fq(m.actual)}${m.qty<0&&pr?` · ≈ ${money(-m.qty*pr)}`:''}${m.note?' · '+esc(m.note):''}`:esc(m.note||'');
+      return `<button class="row" type="button" ${m.sale?`data-sale="${m.id}"`:`data-move="${m.id}"`}><span class="t">${esc(it.name)}</span><span class="s num" style="color:${m.qty<0?'var(--danger)':m.qty>0?'var(--ok)':'var(--muted)'}">${m.qty>0?'+':''}${fq(m.qty)} ${esc(U)}</span>
         <span class="m num">${dmy(m.date)}${extra?' · '+extra:''}</span><span class="chips"><span class="pill ${cls}">${lab}</span>${wpPill(m.wp)}</span></button>`}).join('')+
       (ev.length>15?`<div class="more"><button class="btn sm" type="button" id="moreLog">${S.logAll?'Kamroq ko‘rsatish':`Hammasini ko‘rsatish (${ev.length})`}</button></div>`:'')+`</div>`;
     return html;
   },
   narsalar(){
     if(!S.items.length)return `<div class="card empty">Narsalar ro‘yxati bo‘sh. «+ Narsa» bilan qo‘shing.</div>`;
-    return `<p class="note">Apilka va boshqa narsalar. «Omborda sanaladi» yoqilsa, narsa har bir ish joyida sanaladi va kamomad aniqlanadi.</p>
+    return `<p class="note">Apilka va boshqa narsalar. Bitta narsa bir nechta birlikda sotilishi mumkin (masalan qop va kub), har birining o‘z narxi bor. «Omborda sanaladi» yoqilsa, narsa har bir ish joyida sanaladi va kamomad aniqlanadi.</p>
     <div class="card">`+S.items.map(i=>`<div class="stockitem">
-      <div style="min-width:0"><div style="font-weight:600">${esc(i.name)}</div><div class="note num">${esc(i.unit)}${i.price?' · '+money(i.price):' · narx kiritilmagan'}${i.track?` · jami ${fq(stockAll(i.id))} ${esc(i.unit)}`:''}</div></div>
+      <div style="min-width:0"><div style="font-weight:600">${esc(i.name)}</div><div class="note num">${uList(i).map(x=>`1 ${esc(x.u)} — ${x.price?money(x.price):'narx kiritilmagan'}`).join(' · ')}</div>${i.track?`<div class="note num">Qoldiq: ${uList(i).map(x=>`${fq(stockAll(i.id,x.u))} ${esc(x.u)}`).join(', ')}</div>`:''}</div>
       <div style="display:flex;align-items:center;gap:10px"><span class="note">${i.track?'Omborda':'Sanalmaydi'}</span><button type="button" class="sw" role="switch" aria-label="${esc(i.name)} omborda sanaladi" aria-checked="${!!i.track}" data-track="${i.id}"></button></div>
       <div class="btnrow"><button class="btn sm" type="button" data-edit="${i.id}">Tahrirlash</button></div>
     </div>`).join('')+`</div>`;
@@ -427,7 +433,7 @@ const VIEWS={
   hisobot(){
     const r=S.rep,[from,to]=repRange(),list=repList();
     const short=S.moves.filter(m=>m.type==='sanash'&&m.qty<0&&inScope(m.wp)&&m.date>=from&&m.date<=to);
-    const shortSum=short.reduce((x,m)=>x+(-m.qty)*((item(m.item)||{}).price||0),0);
+    const shortSum=short.reduce((x,m)=>x+(-m.qty)*uOf(item(m.item),moveUnit(m)).price,0);
     const seg=(key,opts)=>`<div class="seg" role="group">${opts.map(([v,n])=>`<button type="button" data-rep="${key}:${v}" aria-pressed="${r[key]===v}">${n}</button>`).join('')}</div>`;
     let html=`${seg('preset',[['today','Bugun'],['week','7 kun'],['month','Shu oy'],['last','O‘tgan oy'],['custom','Sana tanlash']])}
       ${r.preset==='custom'?`<div class="two"><label class="field"><span>Dan</span><input type="date" id="rFrom" value="${from}"></label><label class="field"><span>Gacha</span><input type="date" id="rTo" value="${to}"></label></div>`:''}
@@ -468,7 +474,7 @@ function repRange(){
   const f=r.from||t.slice(0,8)+'01',to=r.to||t;return f<=to?[f,to]:[to,f];
 }
 function repList(){const r=S.rep,[f,t]=repRange();return S.sales.filter(s=>inScope(s.wp)&&s.date>=f&&s.date<=t&&(r.src==='all'||s.src===r.src)&&(r.pay==='all'||s.pay===r.pay)).sort(byDate)}
-function byItem(list){const m={};list.forEach(s=>{const k=s.item;(m[k]??={name:itemName(s),unit:itemUnit(s),q:0,s:0,n:0});m[k].q+=s.qty;m[k].s+=total(s);m[k].n++});return Object.values(m).sort((a,b)=>b.s-a.s)}
+function byItem(list){const m={};list.forEach(s=>{const k=s.item+'|'+itemUnit(s);(m[k]??={name:itemName(s),unit:itemUnit(s),q:0,s:0,n:0});m[k].q+=s.qty;m[k].s+=total(s);m[k].n++});return Object.values(m).sort((a,b)=>b.s-a.s)}
 function byWp(list){return S.wps.map(w=>{const l=list.filter(s=>s.wp===w.id);return{name:w.name,manager:w.manager||'',n:l.length,naqd:sumOf(l.filter(s=>s.pay==='naqd')),karta:sumOf(l.filter(s=>s.pay==='karta')),nasiya:sumOf(l.filter(s=>s.pay==='nasiya')),debt:l.reduce((a,s)=>a+debtOf(s),0),sum:sumOf(l)}})}
 
 $('view').addEventListener('click',e=>{
@@ -476,8 +482,8 @@ $('view').addEventListener('click',e=>{
   if(d.sale)return saleDetail(d.sale);
   if(d.debt)return debtDetail(d.debt);
   if(d.move)return moveDetail(d.move);
-  if(d.kirim)return kirimForm(d.kirim);
-  if(d.sanash)return countForm(d.sanash);
+  if(d.kirim){const[a,u]=d.kirim.split('|');return kirimForm(a,u)}
+  if(d.sanash){const[a,u]=d.sanash.split('|');return countForm(a,u)}
   if(d.track){const i=item(d.track);i.track=!i.track;DB.put('items',i);render();return toast(i.track?`${i.name}: endi omborda sanaladi`:`${i.name}: omborda sanalmaydi`)}
   if(d.edit)return itemForm(d.edit);
   if(d.rep){const[k,v]=d.rep.split(':');S.rep[k]=v;if(v==='custom'&&!S.rep.from){S.rep.from=today().slice(0,8)+'01';S.rep.to=today()}return render()}
@@ -494,23 +500,26 @@ function saleForm(editId,pay){
   if(!S.items.length){toast('Avval «Narsalar» bo‘limida narsa qo‘shing');S.tab='narsalar';render();return}
   const ex=editId?S.sales.find(s=>s.id===editId):null;
   const it0=ex?item(ex.item)||S.items[0]:S.items[0];
-  const f=ex?{date:ex.date,wp:ex.wp,item:it0.id,src:ex.src,qty:fq(ex.qty).replace(/\s/g,''),price:String(ex.price),buyer:ex.buyer,phone:ex.phone,pay:ex.pay,note:ex.note||'',paid:ex.paid?String(ex.paid):'',due:ex.due||addDays(today(),14),tried:false}
-    :{date:today(),wp:defWp(),item:it0.id,src:it0.track?'ombor':'togri',qty:'',price:it0.price?String(it0.price):'',buyer:'',phone:'',pay:pay||'naqd',note:'',paid:'',due:addDays(today(),14),tried:false};
+  const u0=ex?itemUnit(ex):firstU(it0),k0=ex&&ex.kuzov||[];
+  const f=ex?{date:ex.date,wp:ex.wp,item:it0.id,unit:u0,src:ex.src,qty:fq(ex.qty).replace(/\s/g,''),price:String(ex.price),buyer:ex.buyer,phone:ex.phone,pay:ex.pay,note:ex.note||'',paid:ex.paid?String(ex.paid):'',due:ex.due||addDays(today(),14),tried:false}
+    :{date:today(),wp:defWp(),item:it0.id,unit:u0,src:it0.track?'ombor':'togri',qty:'',price:uOf(it0,u0).price?String(uOf(it0,u0).price):'',buyer:'',phone:'',pay:pay||'naqd',note:'',paid:'',due:addDays(today(),14),tried:false};
+  Object.assign(f,{ka:k0[0]?String(k0[0]):'',kb:k0[1]?String(k0[1]):'',kc:k0[2]?String(k0[2]):'',kOpen:!!k0.length});
+  const kuzovOn=()=>f.unit==='m³'&&f.kOpen&&pos(f.ka)&&pos(f.kb)&&pos(f.kc);
   const later=ex?(ex.payments||[]).reduce((a,p)=>a+p.amount,0):0;
   function state(){
-    const it=item(f.item),q=pos(f.qty),p=pos(f.price),sum=Math.round(q*p);
-    const have=it.track?stock(f.wp,f.item,ex&&ex.id):null;
+    const it=item(f.item),U=f.unit,q=pos(f.qty),p=pos(f.price),sum=Math.round(q*p);
+    const have=it.track?stock(f.wp,f.item,U,ex&&ex.id):null;
     const e={};
     if(!q)e.qty=1;if(!p)e.price=1;if(!f.buyer.trim())e.buyer=1;if(!phoneOk(f.phone))e.phone=1;if(!f.date)e.date=1;
     if(f.src==='ombor'&&q>have+1e-9)e.stock=1;
     if(f.pay==='nasiya'){if(!f.due||f.due<f.date)e.due=1;if(sum>0&&pos(f.paid)+later>=sum)e.paid=1}
-    return{it,q,p,sum,have,e,ok:!Object.keys(e).length};
+    return{it,U,q,p,sum,have,e,ok:!Object.keys(e).length};
   }
   function hint(st){
-    const{it,q,have}=st;
+    const{it,U,q,have}=st;
     if(f.src==='ombor'){
-      if(st.e.stock)return `<div class="hint bad">Omborda yetarli emas: ${multiWp()?esc(wpName(f.wp))+'da ':''}${fq(have)} ${esc(it.unit)} bor. Avval kirim qiling yoki «To‘g‘ridan-to‘g‘ri»ni tanlang.</div>`;
-      return `<div class="hint ok num">${multiWp()?esc(wpName(f.wp))+' omborida':'Omborda'}: ${fq(have)} ${esc(it.unit)}${q>0?` → sotuvdan keyin ${fq(have-q)}`:''}</div>`;
+      if(st.e.stock)return `<div class="hint bad">Omborda yetarli emas: ${multiWp()?esc(wpName(f.wp))+'da ':''}${fq(have)} ${esc(U)} bor. Avval kirim qiling yoki «To‘g‘ridan-to‘g‘ri»ni tanlang.</div>`;
+      return `<div class="hint ok num">${multiWp()?esc(wpName(f.wp))+' omborida':'Omborda'}: ${fq(have)} ${esc(U)}${q>0?` → sotuvdan keyin ${fq(have-q)}`:''}</div>`;
     }
     return `<div class="hint warn">Omborga tegmaydi — faqat sotuv daftariga yoziladi.${it.track?'':` «${esc(it.name)}» omborda sanalmaydi.`}</div>`;
   }
@@ -519,16 +528,19 @@ function saleForm(editId,pay){
     return `<div class="hint warn num" id="s-ns">Qarz qoladi: <b>${money(Math.max(0,st.sum-pos(f.paid)-later))}</b>${f.due?` · ${dmy(f.due)} gacha qaytaradi`:''}</div>`;
   }
   function body(){
-    const st=state(),{it}=st,E=k=>f.tried&&st.e[k]?'err':'';
+    const st=state(),{it,U}=st,E=k=>f.tried&&st.e[k]?'err':'';
     return `<h3>${ex?'Sotuvni tahrirlash':f.pay==='nasiya'?'Nasiyaga sotuv':'Yangi sotuv'}</h3>
       <label class="field ${E('date')}" style="max-width:220px"><span>Sana</span><input type="date" id="s-date" value="${f.date}" max="${today()}"></label>
       ${wpSeg(f.wp,'fwp')}
       <div class="field"><span>Narsa</span><div class="seg" role="group">${S.items.map(i=>`<button type="button" data-fit="${i.id}" aria-pressed="${f.item===i.id}">${esc(i.name)}</button>`).join('')}</div></div>
+      ${uList(it).length>1?`<div class="field"><span>Qanday sotildi</span><div class="seg" role="group">${uList(it).map(x=>`<button type="button" data-funit="${esc(x.u)}" aria-pressed="${U===x.u}">${x.u==='m³'?'Kubda (m³)':x.u==='qop'?'Qopda':esc(x.u)}</button>`).join('')}</div></div>`:''}
       <div class="field"><span>Qayerdan sotildi</span><div class="seg" role="group">
         <button type="button" data-fsrc="ombor" aria-pressed="${f.src==='ombor'}" ${it.track?'':'disabled'}>Ombordan</button>
         <button type="button" data-fsrc="togri" aria-pressed="${f.src==='togri'}">To‘g‘ridan-to‘g‘ri</button></div></div>
-      <div class="two"><label class="field ${E('qty')}"><span>Miqdor (${esc(it.unit)}) <b class="req">*</b></span><input id="s-qty" inputmode="decimal" placeholder="0" value="${esc(f.qty)}"></label>
-        <label class="field ${E('price')}"><span>Narx (1 ${esc(it.unit)}) <b class="req">*</b></span><input id="s-price" inputmode="numeric" placeholder="0" value="${esc(f.price)}"></label></div>
+      ${U==='m³'?(f.kOpen?`<div class="field"><span>Kuzov o‘lchami (metr): uzunlik × eni × balandlik</span><div class="two" style="grid-template-columns:1fr 1fr 1fr"><input id="s-ka" inputmode="decimal" placeholder="Uzunlik" aria-label="Uzunlik" value="${esc(f.ka)}"><input id="s-kb" inputmode="decimal" placeholder="Eni" aria-label="Eni" value="${esc(f.kb)}"><input id="s-kc" inputmode="decimal" placeholder="Balandlik" aria-label="Balandlik" value="${esc(f.kc)}"></div><button class="btn sm" type="button" id="s-koff" style="align-self:flex-start">Kuzovsiz, kubni o‘zim yozaman</button></div>`
+        :`<button class="btn sm" type="button" id="s-kon" style="align-self:flex-start">Kuzov o‘lchami bilan hisoblash</button>`):''}
+      <div class="two"><label class="field ${E('qty')}"><span>Miqdor (${esc(U)}) <b class="req">*</b></span><input id="s-qty" inputmode="decimal" placeholder="0" value="${esc(f.qty)}"></label>
+        <label class="field ${E('price')}"><span>Narx (1 ${esc(U)}) <b class="req">*</b></span><input id="s-price" inputmode="numeric" placeholder="0" value="${esc(f.price)}"></label></div>
       <div id="s-hint">${hint(st)}</div>
       <div class="total"><span>Summa</span><b class="num" id="s-total">${money(st.sum)}</b></div>
       <div class="two"><label class="field ${E('buyer')}"><span>Xaridor ismi <b class="req">*</b></span><input id="s-buyer" autocomplete="off" placeholder="Ism" value="${esc(f.buyer)}" list="buyers"></label>
@@ -542,18 +554,21 @@ function saleForm(editId,pay){
       ${f.tried&&!st.ok?`<div class="hint bad">Qizil belgilangan joylarni to‘g‘rilang.${st.e.phone&&f.phone?' Telefon raqami to‘liq emas.':''}${st.e.due?' Qaytarish muddati sotuv sanasidan oldin bo‘lmasin.':''}</div>`:''}
       <div class="btnrow"><button class="btn pri grow" type="button" id="s-save">${ex?'Saqlash':'Daftarga yozish'}</button><button class="btn" type="button" id="s-cancel">Bekor</button></div>`;
   }
-  const sync=root=>{['date','qty','price','buyer','phone','note','paid','due'].forEach(k=>{const el=root.querySelector('#s-'+k);if(el)f[k]=el.value})};
+  const sync=root=>{['date','qty','price','buyer','phone','note','paid','due','ka','kb','kc'].forEach(k=>{const el=root.querySelector('#s-'+k);if(el)f[k]=el.value})};
   function bind(root){
     root.onclick=async e=>{const b=btn(e);if(!b)return;sync(root);const d=b.dataset;
       if(d.fwp){f.wp=d.fwp;redraw(body(),bind)}
-      else if(d.fit){const i=item(d.fit);if(f.item!==i.id){f.item=i.id;if(i.price)f.price=String(i.price);f.src=i.track?'ombor':'togri'}redraw(body(),bind)}
+      else if(d.fit){const i=item(d.fit);if(f.item!==i.id){f.item=i.id;f.unit=firstU(i);f.price=uOf(i,f.unit).price?String(uOf(i,f.unit).price):'';f.src=i.track?'ombor':'togri'}redraw(body(),bind)}
+      else if(d.funit){if(f.unit!==d.funit){f.unit=d.funit;const pr=uOf(item(f.item),f.unit).price;f.price=pr?String(pr):'';f.qty=''}redraw(body(),bind)}
+      else if(b.id==='s-kon'){f.kOpen=true;redraw(body(),bind);const a=$('sheetIn').querySelector('#s-ka');a&&a.focus()}
+      else if(b.id==='s-koff'){f.kOpen=false;f.ka=f.kb=f.kc='';redraw(body(),bind)}
       else if(d.fsrc){f.src=d.fsrc;redraw(body(),bind)}
       else if(d.fpay){f.pay=d.fpay;redraw(body(),bind)}
       else if(b.id==='s-cancel')closeSheet();
       else if(b.id==='s-save'){const st=state();
         if(!st.ok){f.tried=true;return redraw(body(),bind)}
         const ns=f.pay==='nasiya';
-        const rec={id:ex?ex.id:uid('s'),ts:ex?ex.ts:Date.now(),date:f.date,wp:f.wp,item:f.item,itemName:st.it.name,unit:st.it.unit,qty:r3(st.q),price:Math.round(st.p),
+        const rec={id:ex?ex.id:uid('s'),ts:ex?ex.ts:Date.now(),date:f.date,wp:f.wp,item:f.item,itemName:st.it.name,unit:st.U,kuzov:kuzovOn()?[r3(pos(f.ka)),r3(pos(f.kb)),r3(pos(f.kc))]:null,qty:r3(st.q),price:Math.round(st.p),
           buyer:f.buyer.trim(),phone:fmtPhone(f.phone),src:f.src,pay:f.pay,note:f.note.trim(),paid:ns?Math.round(pos(f.paid)):0,due:ns?f.due:'',payments:ns&&ex?(ex.payments||[]):[]};
         await DB.put('sales',rec);
         if(ex)Object.assign(ex,rec);else S.sales.push(rec);
@@ -561,8 +576,9 @@ function saleForm(editId,pay){
         toast(ex?'Sotuv saqlandi':ns?`Nasiya yozildi: qarz ${money(debtOf(rec))}`:f.src==='ombor'?'Yozildi va ombordan ayirildi':'Daftarga yozildi');
       }};
     root.oninput=e=>{sync(root);const id=e.target.id;
+      if(['s-ka','s-kb','s-kc'].includes(id)&&kuzovOn()){f.qty=fq(pos(f.ka)*pos(f.kb)*pos(f.kc)).replace(/\s/g,'');root.querySelector('#s-qty').value=f.qty}
       if(id==='s-buyer'&&!f.phone){const prev=S.sales.filter(s=>s.buyer===f.buyer.trim()).sort(byDate)[0];if(prev){f.phone=prev.phone;root.querySelector('#s-phone').value=prev.phone}}
-      if(['s-qty','s-price','s-paid','s-due','s-buyer','s-date'].includes(id)){
+      if(['s-qty','s-price','s-paid','s-due','s-buyer','s-date','s-ka','s-kb','s-kc'].includes(id)){
         const st=state();root.querySelector('#s-total').textContent=money(st.sum);root.querySelector('#s-hint').innerHTML=hint(st);
         const ns=root.querySelector('#s-ns');if(ns)ns.outerHTML=nsHint(st)}};
   }
@@ -577,6 +593,7 @@ function saleDetail(id){
       <dt>Qayerdan</dt><dd>${s.src==='ombor'?'Ombordan (qoldiqdan ayirilgan)':'To‘g‘ridan-to‘g‘ri'}</dd>
       <dt>Xaridor</dt><dd>${esc(s.buyer)}</dd><dt>Telefon</dt><dd>${esc(fmtPhone(s.phone))}</dd>
       <dt>To‘lov</dt><dd>${PAYS[s.pay]}${s.pay==='nasiya'?` · qarz ${money(debtOf(s))}, muddat ${dmy(s.due)}`:''}</dd>
+      ${s.kuzov?`<dt>Kuzov</dt><dd>${s.kuzov.map(fq).join(' × ')} m = ${fq(s.qty)} m³</dd>`:''}
       ${s.note?`<dt>Izoh</dt><dd>${esc(s.note)}</dd>`:''}</dl>
     <div class="btnrow">${s.pay==='nasiya'?`<button class="btn amber" type="button" id="d-debt">Nasiyani ochish</button>`:''}<button class="btn" type="button" id="d-edit">Tahrirlash</button><button class="btn danger" type="button" id="d-del">O‘chirish</button><button class="btn" type="button" id="d-close" style="margin-left:auto">Yopish</button></div>
     ${sure?`<div class="confirm"><b>Bu sotuv butunlay o‘chirilsinmi?</b>${s.src==='ombor'?`<span>${fq(s.qty)} ${esc(itemUnit(s))} ${multiWp()?esc(wpName(s.wp))+' omboriga':'omborga'} qaytadi.</span>`:''}${s.pay==='nasiya'&&(s.payments||[]).length?'<span>Nasiya bo‘yicha yozilgan to‘lovlar ham o‘chadi.</span>':''}
@@ -629,35 +646,38 @@ function debtDetail(id){
   openSheet(html(),bind);
 }
 
-function kirimForm(itemId){
+function kirimForm(itemId,unit){
   const tr=tracked();if(!tr.length)return toast('Omborda sanaladigan narsa yo‘q');
-  const f={wp:defWp(),item:itemId||tr[0].id,date:today(),qty:'',note:'',err:''};
-  const html=()=>{const it=item(f.item);return `<h3>Omborga kirim</h3>
+  const i0=itemId?item(itemId):tr[0];
+  const f={wp:defWp(),item:i0.id,unit:unit||firstU(i0),date:today(),qty:'',note:'',err:''};
+  const html=()=>{const it=item(f.item),U=f.unit;return `<h3>Omborga kirim</h3>
     ${wpSeg(f.wp,'kwp')}
     <div class="field"><span>Narsa</span><div class="seg" role="group">${tr.map(i=>`<button type="button" data-kit="${i.id}" aria-pressed="${f.item===i.id}">${esc(i.name)}</button>`).join('')}</div></div>
-    <div class="two"><label class="field ${f.err?'err':''}"><span>Miqdor (${esc(it.unit)})</span><input id="k-qty" inputmode="decimal" placeholder="0" value="${esc(f.qty)}"></label>
+    ${uList(it).length>1?`<div class="field"><span>Birlik</span><div class="seg" role="group">${uList(it).map(x=>`<button type="button" data-kunit="${esc(x.u)}" aria-pressed="${U===x.u}">${x.u==='m³'?'Kub (m³)':x.u==='qop'?'Qop':esc(x.u)}</button>`).join('')}</div></div>`:''}
+    <div class="two"><label class="field ${f.err?'err':''}"><span>Miqdor (${esc(U)})</span><input id="k-qty" inputmode="decimal" placeholder="0" value="${esc(f.qty)}"></label>
       <label class="field"><span>Sana</span><input id="k-date" type="date" value="${f.date}" max="${today()}"></label></div>
     <label class="field"><span>Qayerdan keldi</span><input id="k-note" placeholder="Masalan: sexdan chiqdi" value="${esc(f.note)}"></label>
-    <div class="hint ok num">Hozir ${multiWp()?esc(wpName(f.wp))+'da':'omborda'}: ${fq(stock(f.wp,f.item))} ${esc(it.unit)}</div>
+    <div class="hint ok num">Hozir ${multiWp()?esc(wpName(f.wp))+'da':'omborda'}: ${fq(stock(f.wp,f.item,U))} ${esc(U)}</div>
     ${f.err?`<div class="hint bad">${f.err}</div>`:''}
     <div class="btnrow"><button class="btn pri grow" type="button" id="k-save">Kirim qilish</button><button class="btn" type="button" id="k-cancel">Bekor</button></div>`};
   const sync=root=>{f.qty=root.querySelector('#k-qty').value;f.date=root.querySelector('#k-date').value||today();f.note=root.querySelector('#k-note').value};
   const bind=root=>root.onclick=async e=>{const b=btn(e);if(!b)return;sync(root);
     if(b.dataset.kwp){f.wp=b.dataset.kwp;redraw(html(),bind)}
-    else if(b.dataset.kit){f.item=b.dataset.kit;redraw(html(),bind)}
+    else if(b.dataset.kit){if(f.item!==b.dataset.kit){f.item=b.dataset.kit;f.unit=firstU(item(f.item))}redraw(html(),bind)}
+    else if(b.dataset.kunit){f.unit=b.dataset.kunit;redraw(html(),bind)}
     else if(b.id==='k-cancel')closeSheet();
     else if(b.id==='k-save'){const q=pos(f.qty);if(!q){f.err='Miqdorni kiriting.';return redraw(html(),bind)}
-      const m={id:uid('m'),ts:Date.now(),date:f.date,wp:f.wp,item:f.item,type:'kirim',qty:r3(q),note:f.note.trim()};
-      await DB.put('moves',m);S.moves.push(m);closeSheet();render();toast(`${fq(q)} ${item(f.item).unit} kirim qilindi`)}};
+      const m={id:uid('m'),ts:Date.now(),date:f.date,wp:f.wp,item:f.item,unit:f.unit,type:'kirim',qty:r3(q),note:f.note.trim()};
+      await DB.put('moves',m);S.moves.push(m);closeSheet();render();toast(`${fq(q)} ${f.unit} kirim qilindi`)}};
   openSheet(html(),bind);
 }
 
-function countForm(itemId){
-  const wp=S.wp==='all'?S.wps[0].id:S.wp,it=item(itemId),exp=stock(wp,itemId);
-  const html=`<h3>Sanash: ${esc(it.name)}</h3>
+function countForm(itemId,unit){
+  const wp=S.wp==='all'?S.wps[0].id:S.wp,it=item(itemId),U=unit||firstU(it),pr=uOf(it,U).price,exp=stock(wp,itemId,U);
+  const html=`<h3>Sanash: ${esc(tName(it,U))}</h3>
     <p class="note">${multiWp()?esc(wpName(wp))+'dagi':'Ombordagi'} narsani qo‘lda sanang va haqiqiy sonini kiriting. Farq kamomad yoki ortiqcha bo‘lib yoziladi, qoldiq sanalgan songa tenglashadi.</p>
-    <div class="total"><span>Hisob bo‘yicha</span><b class="num">${fq(exp)} ${esc(it.unit)}</b></div>
-    <label class="field"><span>Haqiqatda sanaldi (${esc(it.unit)})</span><input id="c-act" inputmode="decimal" placeholder="${fq(exp)}"></label>
+    <div class="total"><span>Hisob bo‘yicha</span><b class="num">${fq(exp)} ${esc(U)}</b></div>
+    <label class="field"><span>Haqiqatda sanaldi (${esc(U)})</span><input id="c-act" inputmode="decimal" placeholder="${fq(exp)}"></label>
     <div id="c-diff"></div>
     <label class="field"><span>Izoh</span><input id="c-note" placeholder="Masalan: haftalik sanash"></label>
     <div class="btnrow"><button class="btn pri grow" type="button" id="c-save" disabled>Sanashni saqlash</button><button class="btn" type="button" id="c-cancel">Bekor</button></div>`;
@@ -665,23 +685,23 @@ function countForm(itemId){
     const inp=root.querySelector('#c-act');
     inp.oninput=()=>{const a=num(inp.value),d=root.querySelector('#c-diff'),sv=root.querySelector('#c-save');
       if(!isFinite(a)||a<0){d.innerHTML='';sv.disabled=true;return}sv.disabled=false;const df=r3(a-exp);
-      d.innerHTML=df<0?`<div class="hint bad num">Kamomad: ${fq(-df)} ${esc(it.unit)}${it.price?` · ≈ ${money(-df*it.price)}`:''}</div>`:df>0?`<div class="hint warn num">Ortiqcha: ${fq(df)} ${esc(it.unit)} — kirim yozilmagan bo‘lishi mumkin</div>`:`<div class="hint ok">Hisob to‘g‘ri chiqdi</div>`};
+      d.innerHTML=df<0?`<div class="hint bad num">Kamomad: ${fq(-df)} ${esc(U)}${pr?` · ≈ ${money(-df*pr)}`:''}</div>`:df>0?`<div class="hint warn num">Ortiqcha: ${fq(df)} ${esc(U)} — kirim yozilmagan bo‘lishi mumkin</div>`:`<div class="hint ok">Hisob to‘g‘ri chiqdi</div>`};
     root.onclick=async e=>{const b=btn(e);if(!b)return;
       if(b.id==='c-cancel')closeSheet();
       if(b.id==='c-save'){const a=num(inp.value);if(!isFinite(a)||a<0)return;
-        const m={id:uid('m'),ts:Date.now(),date:today(),wp,item:itemId,type:'sanash',expected:exp,actual:r3(a),qty:r3(a-exp),note:root.querySelector('#c-note').value.trim()};
-        await DB.put('moves',m);S.moves.push(m);closeSheet();render();toast(a<exp?`Kamomad yozildi: ${fq(exp-a)} ${it.unit}`:a>exp?`Ortiqcha yozildi: ${fq(a-exp)} ${it.unit}`:'Sanash saqlandi: hisob to‘g‘ri')}};
+        const m={id:uid('m'),ts:Date.now(),date:today(),wp,item:itemId,unit:U,type:'sanash',expected:exp,actual:r3(a),qty:r3(a-exp),note:root.querySelector('#c-note').value.trim()};
+        await DB.put('moves',m);S.moves.push(m);closeSheet();render();toast(a<exp?`Kamomad yozildi: ${fq(exp-a)} ${U}`:a>exp?`Ortiqcha yozildi: ${fq(a-exp)} ${U}`:'Sanash saqlandi: hisob to‘g‘ri')}};
   });
 }
 
 function moveDetail(id){
-  const m=S.moves.find(x=>x.id===id);if(!m)return;const it=item(m.item)||{name:'—',unit:''};let sure=false;
-  const html=()=>`<h3>${m.type==='kirim'?'Kirim':'Sanash'}: ${esc(it.name)}</h3>
+  const m=S.moves.find(x=>x.id===id);if(!m)return;const it=item(m.item)||{name:'—',units:[]},U=moveUnit(m);let sure=false;
+  const html=()=>`<h3>${m.type==='kirim'?'Kirim':'Sanash'}: ${esc(it.name)} · ${esc(U)}</h3>
     <dl class="kv num"><dt>Sana</dt><dd>${dmy(m.date)}</dd>${multiWp()?`<dt>Ish joyi</dt><dd>${esc(wpName(m.wp))}</dd>`:''}
-    ${m.type==='kirim'?`<dt>Miqdor</dt><dd>+${fq(m.qty)} ${esc(it.unit)}</dd>`:`<dt>Hisobda edi</dt><dd>${fq(m.expected)} ${esc(it.unit)}</dd><dt>Sanaldi</dt><dd>${fq(m.actual)} ${esc(it.unit)}</dd><dt>Farq</dt><dd style="color:${m.qty<0?'var(--danger)':'inherit'}">${m.qty>0?'+':''}${fq(m.qty)} ${esc(it.unit)}</dd>`}
+    ${m.type==='kirim'?`<dt>Miqdor</dt><dd>+${fq(m.qty)} ${esc(U)}</dd>`:`<dt>Hisobda edi</dt><dd>${fq(m.expected)} ${esc(U)}</dd><dt>Sanaldi</dt><dd>${fq(m.actual)} ${esc(U)}</dd><dt>Farq</dt><dd style="color:${m.qty<0?'var(--danger)':'inherit'}">${m.qty>0?'+':''}${fq(m.qty)} ${esc(U)}</dd>`}
     ${m.note?`<dt>Izoh</dt><dd>${esc(m.note)}</dd>`:''}</dl>
     <div class="btnrow"><button class="btn danger" type="button" id="m-del">O‘chirish</button><button class="btn" type="button" id="m-close" style="margin-left:auto">Yopish</button></div>
-    ${sure?`<div class="confirm"><b>Bu yozuv o‘chirilsinmi?</b><span>Qoldiq ${m.qty>0?fq(m.qty)+' '+esc(it.unit)+' kamayadi':m.qty<0?fq(-m.qty)+' '+esc(it.unit)+' ko‘payadi':'o‘zgarmaydi'}.</span>
+    ${sure?`<div class="confirm"><b>Bu yozuv o‘chirilsinmi?</b><span>Qoldiq ${m.qty>0?fq(m.qty)+' '+esc(U)+' kamayadi':m.qty<0?fq(-m.qty)+' '+esc(U)+' ko‘payadi':'o‘zgarmaydi'}.</span>
       <div class="btnrow"><button class="btn danger sure" type="button" id="m-yes">Ha, o‘chirish</button><button class="btn" type="button" id="m-no">Yo‘q</button></div></div>`:''}`;
   const bind=root=>root.onclick=async e=>{const b=btn(e);if(!b)return;
     if(b.id==='m-close')closeSheet();else if(b.id==='m-del'){sure=true;redraw(html(),bind)}else if(b.id==='m-no'){sure=false;redraw(html(),bind)}
@@ -691,23 +711,32 @@ function moveDetail(id){
 
 function itemForm(id){
   const ex=id?item(id):null;
-  const f=ex?{name:ex.name,unit:ex.unit,price:ex.price?String(ex.price):'',track:!!ex.track,min:ex.min?String(ex.min):''}:{name:'',unit:'qop',price:'',track:true,min:''};
+  const f=ex?{name:ex.name,track:!!ex.track,units:uList(ex).map(x=>({u:x.u,price:x.price?String(x.price):'',min:x.min?String(x.min):''}))}
+    :{name:'',track:true,units:[{u:'qop',price:'',min:''}]};
+  const usedU=u=>!!ex&&(S.sales.some(s=>s.item===id&&itemUnit(s)===u)||S.moves.some(m=>m.item===id&&moveUnit(m)===u));
   const used=ex&&(S.sales.some(s=>s.item===id)||S.moves.some(m=>m.item===id));
   let err='',sure=false;
+  const has=u=>f.units.some(x=>x.u===u);
   const html=()=>`<h3>${ex?'Narsani tahrirlash':'Yangi narsa'}</h3>
-    <label class="field ${err?'err':''}"><span>Nomi</span><input id="n-name" placeholder="Masalan: Qipiq" value="${esc(f.name)}"></label>
-    <div class="field"><span>O‘lchov birligi</span><div class="seg" role="group">${[...new Set([...UNITS,f.unit])].map(u=>`<button type="button" data-unit="${esc(u)}" aria-pressed="${f.unit===u}" ${used&&f.unit!==u?'disabled':''}>${esc(u)}</button>`).join('')}</div>${used?'<span class="note">Sotuvlari bor narsaning birligini o‘zgartirib bo‘lmaydi.</span>':''}</div>
-    <div class="two"><label class="field"><span>Odatiy narx (1 ${esc(f.unit)})</span><input id="n-price" inputmode="numeric" placeholder="0" value="${esc(f.price)}"></label>
-      <label class="field"><span>Kam qolsa ogohlantirish</span><input id="n-min" inputmode="decimal" value="${esc(f.min)}" placeholder="0"></label></div>
-    <div style="display:flex;align-items:center;gap:12px;justify-content:space-between"><div><div style="font-weight:600">Omborda sanaladi</div><div class="note">Yoqilsa: kirim, qoldiq va kamomad hisoblanadi</div></div>
+    <label class="field ${err&&!f.name.trim()?'err':''}"><span>Nomi</span><input id="n-name" placeholder="Masalan: Qipiq" value="${esc(f.name)}"></label>
+    <div class="field"><span>Qanday birlikda sotiladi (bir nechtasini tanlash mumkin)</span><div class="seg" role="group">${[...new Set([...UNITS,...f.units.map(x=>x.u)])].map(u=>`<button type="button" data-unit="${esc(u)}" aria-pressed="${has(u)}" ${has(u)&&usedU(u)?'disabled':''}>${esc(u)}</button>`).join('')}</div>
+      ${f.units.some(x=>usedU(x.u))?'<span class="note">Sotuv yoki ombor yozuvi bor birlikni olib tashlab bo‘lmaydi.</span>':''}</div>
+    ${f.units.map(x=>`<div class="two"><label class="field"><span>1 ${esc(x.u)} narxi</span><input data-up="${esc(x.u)}" inputmode="numeric" placeholder="0" value="${esc(x.price)}"></label>
+      <label class="field"><span>Kam qolsa ogohlantirish (${esc(x.u)})</span><input data-um="${esc(x.u)}" inputmode="decimal" placeholder="0" value="${esc(x.min)}"></label></div>`).join('')}
+    <div style="display:flex;align-items:center;gap:12px;justify-content:space-between"><div><div style="font-weight:600">Omborda sanaladi</div><div class="note">Yoqilsa: kirim, qoldiq va kamomad hisoblanadi; har bir birlik alohida</div></div>
       <button type="button" class="sw" role="switch" aria-label="Omborda sanaladi" aria-checked="${f.track}" id="n-track"></button></div>
     ${err?`<div class="hint bad">${err}</div>`:''}
     <div class="btnrow"><button class="btn pri grow" type="button" id="n-save">Saqlash</button>${ex&&!used?'<button class="btn danger" type="button" id="n-del">O‘chirish</button>':''}<button class="btn" type="button" id="n-cancel">Bekor</button></div>
     ${ex&&used?'<p class="note">Bu narsa sotuv yoki ombor yozuvlarida bor, shuning uchun o‘chirilmaydi.</p>':''}
     ${sure?`<div class="confirm"><b>«${esc(ex.name)}» ro‘yxatdan o‘chirilsinmi?</b><div class="btnrow"><button class="btn danger sure" type="button" id="n-yes">Ha, o‘chirish</button><button class="btn" type="button" id="n-no">Yo‘q</button></div></div>`:''}`;
-  const sync=root=>{f.name=root.querySelector('#n-name').value;f.price=root.querySelector('#n-price').value;f.min=root.querySelector('#n-min').value};
+  const sync=root=>{f.name=root.querySelector('#n-name').value;
+    root.querySelectorAll('[data-up]').forEach(el=>{const x=f.units.find(y=>y.u===el.dataset.up);if(x)x.price=el.value});
+    root.querySelectorAll('[data-um]').forEach(el=>{const x=f.units.find(y=>y.u===el.dataset.um);if(x)x.min=el.value})};
   const bind=root=>root.onclick=async e=>{const b=btn(e);if(!b)return;sync(root);
-    if(b.dataset.unit){f.unit=b.dataset.unit;redraw(html(),bind)}
+    if(b.dataset.unit){const u=b.dataset.unit;err='';
+      if(has(u)){if(f.units.length===1){err='Kamida bitta birlik qolishi kerak.'}else f.units=f.units.filter(x=>x.u!==u)}
+      else f.units.push({u,price:'',min:''});
+      redraw(html(),bind)}
     else if(b.id==='n-track'){f.track=!f.track;b.setAttribute('aria-checked',f.track)}
     else if(b.id==='n-cancel')closeSheet();
     else if(b.id==='n-del'){sure=true;redraw(html(),bind)}else if(b.id==='n-no'){sure=false;redraw(html(),bind)}
@@ -715,8 +744,9 @@ function itemForm(id){
     else if(b.id==='n-save'){const nm=f.name.trim();
       if(!nm){err='Nomini yozing.';return redraw(html(),bind)}
       if(S.items.some(i=>i.id!==id&&i.name.toLowerCase()===nm.toLowerCase())){err='Bunday nomli narsa allaqachon bor.';return redraw(html(),bind)}
-      const rec={...(ex||{id:uid('i'),order:S.items.length,created:Date.now()}),name:nm,unit:f.unit,price:Math.round(pos(f.price)),track:f.track,min:r3(pos(f.min))};
-      await DB.put('items',rec);if(ex)Object.assign(ex,rec);else S.items.push(rec);
+      const rec={...(ex||{id:uid('i'),order:S.items.length,created:Date.now()}),name:nm,track:f.track,units:f.units.map(x=>({u:x.u,price:Math.round(pos(x.price)),min:r3(pos(x.min))}))};
+      delete rec.unit;delete rec.price;delete rec.min;
+      await DB.put('items',rec);if(ex){Object.keys(ex).forEach(k=>delete ex[k]);Object.assign(ex,rec)}else S.items.push(rec);
       closeSheet();render();toast(ex?'Saqlandi':'Narsa qo‘shildi')}};
   openSheet(html(),bind);
 }
@@ -780,6 +810,7 @@ async function restoreAll(d){
   for(const st of ['items','sales','moves'])await DB.clear(st);
   await DB.putMany('items',d.items);await DB.putMany('sales',d.sales);await DB.putMany('moves',d.moves);
   S.items=d.items.sort((a,b)=>(a.order??0)-(b.order??0));S.sales=d.sales;S.moves=d.moves;
+  S.sales.forEach(s=>{s.payments=s.payments||[]});await migrate();
   if(d.wps.length){S.wps=d.wps;await saveWps()}
   S.wp=multiWp()?'all':S.wps[0].id;await setMeta('curWp',S.wp);
 }
@@ -822,7 +853,7 @@ function buildXLSX(list){
   const asc=[...list].sort((a,b)=>a.date===b.date?(a.ts||0)-(b.ts||0):(a.date<b.date?-1:1));
   const H=['Sana','Hafta kuni','Narsa','Birlik','Miqdor','Narx (so‘m)','Summa (so‘m)','Qayerdan','To‘lov','Xaridor','Telefon','Ish joyi','Nasiya: to‘langan','Nasiya: qarz','Qaytarish muddati','Izoh'];
   const rows=asc.map(s=>[dmy(s.date),wday(s.date),itemName(s),itemUnit(s),s.qty,s.price,total(s),SRC[s.src],PAYS[s.pay],s.buyer,fmtPhone(s.phone),wpName(s.wp),
-    s.pay==='nasiya'?paidOf(s):'',s.pay==='nasiya'?debtOf(s):'',s.pay==='nasiya'?dmy(s.due):'',s.note||'']);
+    s.pay==='nasiya'?paidOf(s):'',s.pay==='nasiya'?debtOf(s):'',s.pay==='nasiya'?dmy(s.due):'',[s.kuzov?`Kuzov ${s.kuzov.map(fq).join('×')} m`:'',s.note||''].filter(Boolean).join('. ')]);
   const title=`Boshqa sotuvlar — ${repLabel()} · ${scopeLabel()}${filterLabel()?' · '+filterLabel():''}`;
   const ws=XL.utils.aoa_to_sheet([[title],H,...rows]);ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}];
   const first=3,last=rows.length+2,tr=last+1;
@@ -857,18 +888,18 @@ function buildXLSX(list){
     ws4['!ref']=XL.utils.encode_range({s:{r:0,c:0},e:{r:n,c:11}});
     ws4['!cols']=[20,17,16,12,20,11,13,14,13,14,18,50].map(w=>({wch:w}));XL.utils.book_append_sheet(wb,ws4,'Nasiyalar');
   }
-  const tr2=tracked();
+  const tr2=trackedRows();
   if(tr2.length){
     const wps=S.wp==='all'?S.wps:[wpById(S.wp)];
     const om=[['Ish joyi','Narsa','Birlik','Hozirgi qoldiq','Kam qolsa chegarasi','Holat','Narx (so‘m)','Qiymati (so‘m)']];
-    wps.forEach(w=>tr2.forEach(i=>{const q=stock(w.id,i.id);om.push([w.name,i.name,i.unit,q,i.min||'',q<=0?'Tugagan':q<(i.min||0)?'Kam qoldi':'Bor',i.price||'',i.price?Math.round(Math.max(0,q)*i.price):''])}));
+    wps.forEach(w=>tr2.forEach(r=>{const q=stock(w.id,r.i.id,r.u);om.push([w.name,r.i.name,r.u,q,r.min||'',q<=0?'Tugagan':q<r.min?'Kam qoldi':'Bor',r.price||'',r.price?Math.round(Math.max(0,q)*r.price):''])}));
     const ws5=XL.utils.aoa_to_sheet(om);ws5['!cols']=[18,22,8,14,16,11,12,14].map(w=>({wch:w}));XL.utils.book_append_sheet(wb,ws5,'Ombor qoldig‘i');
-    const mv=[...S.moves.filter(m=>inScope(m.wp)&&m.date>=from&&m.date<=to).map(m=>({...m,k:m.type})),...S.sales.filter(s=>s.src==='ombor'&&inScope(s.wp)&&s.date>=from&&s.date<=to).map(s=>({date:s.date,ts:s.ts,wp:s.wp,item:s.item,qty:-s.qty,k:'sotuv',note:s.buyer}))]
+    const mv=[...S.moves.filter(m=>inScope(m.wp)&&m.date>=from&&m.date<=to).map(m=>({...m,k:m.type})),...S.sales.filter(s=>s.src==='ombor'&&inScope(s.wp)&&s.date>=from&&s.date<=to).map(s=>({date:s.date,ts:s.ts,wp:s.wp,item:s.item,unit:itemUnit(s),qty:-s.qty,k:'sotuv',note:s.buyer}))]
       .sort((a,b)=>a.date===b.date?(a.ts||0)-(b.ts||0):(a.date<b.date?-1:1));
     if(mv.length){
       const H6=[['Sana','Ish joyi','Narsa','Turi','Miqdor','Birlik','Hisobda edi','Sanaldi','Kamomad qiymati (so‘m)','Izoh / xaridor'],
-        ...mv.map(m=>{const it=item(m.item)||{name:'—',unit:'',price:0};const typ=m.k==='kirim'?'Kirim':m.k==='sotuv'?'Sotuv':m.qty<0?'Kamomad':m.qty>0?'Ortiqcha':'Sanash: to‘g‘ri';
-          return[dmy(m.date),wpName(m.wp),it.name,typ,m.qty,it.unit,m.k==='sanash'?m.expected:'',m.k==='sanash'?m.actual:'',m.k==='sanash'&&m.qty<0&&it.price?Math.round(-m.qty*it.price):'',m.note||'']})];
+        ...mv.map(m=>{const it=item(m.item)||{name:'—',units:[]},U=moveUnit(m),pr=uOf(it,U).price;const typ=m.k==='kirim'?'Kirim':m.k==='sotuv'?'Sotuv':m.qty<0?'Kamomad':m.qty>0?'Ortiqcha':'Sanash: to‘g‘ri';
+          return[dmy(m.date),wpName(m.wp),it.name,typ,m.qty,U,m.k==='sanash'?m.expected:'',m.k==='sanash'?m.actual:'',m.k==='sanash'&&m.qty<0&&pr?Math.round(-m.qty*pr):'',m.note||'']})];
       const ws6=XL.utils.aoa_to_sheet(H6);ws6['!cols']=[11,16,20,14,10,8,12,10,20,26].map(w=>({wch:w}));XL.utils.book_append_sheet(wb,ws6,'Ombor harakatlari');
     }
   }
@@ -924,7 +955,7 @@ function buildPDF(list){
   const short=S.moves.filter(m=>m.type==='sanash'&&m.qty<0&&inScope(m.wp)&&m.date>=from&&m.date<=to);
   if(short.length){y=title('Kamomad (sanashda chiqqan)',y);
     doc.autoTable({...base,startY:y,head:[['Sana','Ish joyi','Narsa','Hisobda','Sanaldi','Kamomad','Taxminiy qiymat']],
-      body:short.map(m=>{const it=item(m.item)||{name:'—',unit:'',price:0};return[dmy(m.date),wpName(m.wp),it.name,fq(m.expected),fq(m.actual),`${fq(-m.qty)} ${it.unit}`,it.price?money(-m.qty*it.price):'—']}),
+      body:short.map(m=>{const it=item(m.item)||{name:'—',units:[]},U=moveUnit(m),pr=uOf(it,U).price;return[dmy(m.date),wpName(m.wp),it.name,fq(m.expected),fq(m.actual),`${fq(-m.qty)} ${U}`,pr?money(-m.qty*pr):'—']}),
       columnStyles:{3:{halign:'right'},4:{halign:'right'},5:{halign:'right',textColor:RED},6:{halign:'right'}}});
   }
   const pc=doc.getNumberOfPages();
@@ -954,18 +985,30 @@ function exportSheet(kind){
 }
 
 /* ---------- ishga tushirish ---------- */
-const SEED=[['Apilka (mayin)','qop',true],['Apilka (yo‘g‘on)','qop',true],['Apilka (kuzov)','m³',false],['Palaxta','dona',true]];
+const SEED=[['Apilka (mayin)',['qop','m³'],true],['Apilka (yo‘g‘on)',['qop','m³'],true],['Palaxta',['dona'],true]];
+/* 1.0 -> 1.1: bitta birlik o‘rniga birliklar ro‘yxati; qopdagi apilkaga kub qo‘shiladi; ombor yozuviga birlik yoziladi */
+async function migrate(){
+  const fi=[],fm=[];
+  S.items.forEach(i=>{if(!Array.isArray(i.units)){
+    i.units=[{u:i.unit||'dona',price:i.price||0,min:i.min||0}];
+    if(/^apilka/i.test(i.name)&&i.unit==='qop')i.units.push({u:'m³',price:0,min:0});
+    delete i.unit;delete i.price;delete i.min;fi.push(i)}});
+  S.moves.forEach(m=>{if(!m.unit){m.unit=firstU(item(m.item));fm.push(m)}});
+  S.sales.forEach(s=>{if(!s.unit)s.unit=firstU(item(s.item))});
+  if(fi.length)await DB.putMany('items',fi);if(fm.length)await DB.putMany('moves',fm);
+}
 async function load(){
   const ok=await DB.open();
   if(!ok)setTimeout(()=>toast('Diqqat: xotira ochilmadi, ma’lumot saqlanmaydi'),700);
   [S.items,S.sales,S.moves]=await Promise.all(['items','sales','moves'].map(s=>DB.all(s)));
   (await DB.all('meta')).forEach(x=>S.meta[x.k]=x.v);
   if(!S.meta.seeded){
-    const t=Date.now();const its=SEED.map((s,i)=>({id:uid('i'),name:s[0],unit:s[1],price:0,track:s[2],min:0,order:i,created:t}));
+    const t=Date.now();const its=SEED.map((s,i)=>({id:uid('i'),name:s[0],units:s[1].map(u=>({u,price:0,min:0})),track:s[2],order:i,created:t}));
     await DB.putMany('items',its);S.items=its;await setMeta('seeded',1);
   }
   S.items.sort((a,b)=>(a.order??0)-(b.order??0));
   S.sales.forEach(s=>{s.payments=s.payments||[]});
+  await migrate();
   S.wps=Array.isArray(S.meta.workplaces)&&S.meta.workplaces.length?S.meta.workplaces:[{id:'w1',name:'Asosiy ish joyi',manager:'',phone:''}];
   if(!S.meta.workplaces)await saveWps();
   S.wp=S.meta.curWp&&(S.meta.curWp==='all'?multiWp():wpById(S.meta.curWp))?S.meta.curWp:(multiWp()?'all':S.wps[0].id);
@@ -975,7 +1018,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&lastDay!=
 load().then(()=>{render();if(!S.meta.welcomed){setMeta('welcomed',1);welcome()}});
 function welcome(){
   openSheet(`<h3>Xush kelibsiz</h3>
-    <p class="note">Bu ilovada apilka va boshqa narsalar sotuvini yozasiz. Ma‘lumot faqat shu telefonda saqlanadi, internet shart emas.</p>
+    <p class="note">Bu ilovada apilka va boshqa narsalar sotuvini yozasiz. Ma’lumot faqat shu telefonda saqlanadi, internet shart emas.</p>
     <dl class="kv"><dt>1</dt><dd>«Narsalar»da narxlarni kiriting yoki yangi narsa qo‘shing.</dd>
       <dt>2</dt><dd>Bir nechta ish joyingiz bo‘lsa, yuqoridagi ⚙ tugmasi orqali qo‘shing.</dd>
       <dt>3</dt><dd>Omborda sanaladigan narsalarga «Ombor» bo‘limida kirim qiling.</dd>
