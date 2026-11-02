@@ -1223,7 +1223,7 @@ function vMore(){
   <div class="card" style="display:flex;flex-direction:column;gap:12px">
     <div class="field"><label for="shopIn">Tadbirkor / biznes nomi (hujjatlarda chiqadi)</label><input class="inp" id="shopIn" value="${esc(S.meta.shop||'')}" placeholder="Masalan: Karimov Yog‘och savdo"></div>
     <div id="mySig"></div>
-    <p class="hint" style="margin:0">Muhāsib 1.5 · ilova internetsiz ishlaydi, ma’lumotlar faqat shu telefonda saqlanadi.</p>
+    <p class="hint" style="margin:0">Muhāsib 1.5.1 · ilova internetsiz ishlaydi, ma’lumotlar faqat shu telefonda saqlanadi.</p>
   </div>`;
   $$('[data-mv2]').forEach(b=>b.onclick=()=>setView(b.dataset.mv2));
   $('#shopIn').onchange=async e=>{await setMeta('shop',e.target.value.trim());render();toast('Saqlandi')};
@@ -1671,12 +1671,13 @@ function moveSheet(wp){
 function itemSheet(x){
   if(!x)return;
   openSheet(x.name,api=>{
-    const c=api.content;const f={tur:x.tur||(x.size?'':x.xar||''),size:x.size||'',price:x.price||'',k:x.k,act:''};
+    const c=api.content;const f={tur:x.tur||(x.size?'':x.xar||''),size:x.size||'',price:x.price||'',k:x.k,unit:x.unit,act:''};
     const hist=S.ops.filter(o=>[...o.lines,...(o.used||[])].some(l=>l.itemId===x.id||l.toItemId===x.id)).sort((a,b)=>a.date===b.date?(b.ts||0)-(a.ts||0):(a.date<b.date?1:-1)).slice(0,15);
     c.innerHTML=`<div class="sh-body">
       <div class="card kv"><div><span>Ish joyi</span><b>${esc(wpName(x.wp))}</b></div><div><span>Qoldiq</span><b class="num${x.qty<0?' qneg':''}">${fqu(x.qty,x.unit)}${x.qty<0?' · kiritilmagan':''}</b></div><div><span>Summasi</span><b class="num">${x.qty>0&&x.price?som(x.qty*x.price):'—'}</b></div></div>
       <div class="seg tabs2" role="group"><button type="button" data-ik="x" aria-pressed="${f.k==='x'}">Xomashyo</button><button type="button" data-ik="m" aria-pressed="${f.k==='m'}">Mahsulot</button></div>
       <div class="g2"><div class="field"><label for="iTur">Turi</label><input class="inp" id="iTur" value="${esc(f.tur)}" autocomplete="off"></div><div class="field"><label for="iSize">O‘lchami</label><input class="inp" id="iSize" value="${esc(f.size)}" autocomplete="off"></div></div>
+      <div class="field"><span class="lbl">O‘lchov birligi</span>${unitSeg('iu',f.unit)}<div class="hint" id="iUnitNote">Noto‘g‘ri birlikda kiritilgan bo‘lsa (masalan, pogon metr o‘rniga m³), to‘g‘risini tanlang: son o‘zgarmaydi, faqat birligi almashadi.</div></div>
       ${numField('iPrice',`Narxi, 1 ${UNITS[x.unit].l}`,f.price?sp(f.price):'',"so'm",'numeric')}
       <div class="card" style="display:flex;flex-direction:column;gap:10px"><b>Sanab tuzatish</b>
         ${numField('iAct',`Omborda haqiqatda bor (${UNITS[x.unit].l})`,'',UNITS[x.unit].l,'decimal','sanab chiqing')}
@@ -1688,6 +1689,11 @@ function itemSheet(x){
       ${Math.abs(x.qty)<EPS?'<button class="btn dan" type="button" id="iDel">Ro‘yxatdan o‘chirish</button>':''}
     </div><div class="sh-foot"><button class="btn pri block" type="button" id="iSave">Saqlash</button></div>`;
     $$('[data-ik]',c).forEach(b=>b.onclick=()=>{f.k=b.dataset.ik;$$('[data-ik]',c).forEach(z=>z.setAttribute('aria-pressed',z===b))});
+    $$('[data-iu]',c).forEach(b=>b.onclick=()=>{f.unit=b.dataset.iu;$$('[data-iu]',c).forEach(z=>z.setAttribute('aria-pressed',z===b));
+      const n=$('#iUnitNote',c);c.querySelector('label[for="iPrice"]').textContent=`Narxi, 1 ${UNITS[f.unit].l}`;
+      if(f.unit===x.unit){n.className='hint';n.textContent='Birlik o‘zgarmadi.';return}
+      n.className='note-n';n.innerHTML=`Son o‘zgarmaydi: <b>${esc(fqu(x.qty,x.unit))} → ${esc(fqu(x.qty,f.unit))}</b>. Shu tovarning eski yozuvlaridagi (${esc(UNITS[x.unit].l)}) birlik ham ${esc(UNITS[f.unit].l)} ga almashadi. Narxni 1 ${esc(UNITS[f.unit].l)} uchun yozing.`;
+      const ip2=$('#iPrice',c);if(pos(ip2.value)===pos(x.price)){ip2.value='';f.price='';ip2.focus()}});
     $('#iTur',c).oninput=e=>{f.tur=e.target.value};$('#iSize',c).oninput=e=>{f.size=e.target.value};
     const ip=$('#iPrice',c);ip.oninput=()=>{f.price=pos(ip.value)};ip.onblur=()=>{ip.value=f.price?sp(Math.round(f.price)):''};
     const ia=$('#iAct',c);ia.oninput=()=>{const v=num(ia.value);$('#iDiff',c).textContent=isFinite(v)?`Farq: ${v-x.qty>=0?'+':''}${fqu(r4(v-x.qty),x.unit)}`:`Ilova bo‘yicha: ${fqu(x.qty,x.unit)}`};
@@ -1697,10 +1703,18 @@ function itemSheet(x){
       const op={id:uid('o'),ts:Date.now(),date:today(),time:nowTime(),kind:'adj',wp:x.wp,note:$('#iWhy',c).value.trim(),lines:[lineOf(x,d)]};
       await applyStock([{...op.lines[0],dq:d,setPrice:false}]);await saveOp(op);closeSheet();render();toast(`Qoldiq: ${fqu(v,x.unit)}`)};
     $('#iSave',c).onclick=async()=>{
-      const xar=xarOf(f.tur,f.size);const probe={...x,k:f.k,xar};
+      const xar=xarOf(f.tur,f.size);const probe={...x,k:f.k,xar,unit:f.unit};const old=x.unit;
       const clash=S.items.find(y=>y.id!==x.id&&itemKey(y)===itemKey(probe));
-      if(clash){const e=$('#iErr',c);e.textContent='Bu ish joyida shunday tur allaqachon bor. Boshqa turi yoki o‘lchamini yozing.';e.hidden=false;return}
-      Object.assign(x,{k:f.k,tur:f.tur.trim(),size:f.size.trim(),xar,price:Math.round(pos(f.price)),updated:Date.now()});await DB.put('items',x);closeSheet();render();toast('Saqlandi')};
+      if(clash&&!await askConfirm('Bunday tur allaqachon bor',[`${wpName(x.wp)}da ${x.name}${xar?' ('+xar+')':''} ${fqu(clash.qty,clash.unit)} bor.`,`Ikkalasi bitta qatorga qo‘shiladi: ${fqu(clash.qty,clash.unit)} + ${fqu(x.qty,f.unit)} = ${fqu(r4(clash.qty+x.qty),f.unit)}.`],'','Ha, qo‘shish'))return;
+      // relabel the unit in this item's own records (the number stays, only the unit was wrong)
+      if(f.unit!==old){const ch=[];S.ops.forEach(o=>{let hit=false;[...o.lines,...(o.used||[])].forEach(l=>{if((l.itemId===x.id||l.toItemId===x.id)&&l.unit===old){l.unit=f.unit;hit=true}});
+        if(hit){o.events=[...(o.events||[]),{ts:Date.now(),text:`birlik ${UNITS[old].l} → ${UNITS[f.unit].l}`}];ch.push(o)}});await DB.putMany('ops',ch)}
+      Object.assign(x,{k:f.k,unit:f.unit,tur:f.tur.trim(),size:f.size.trim(),xar,price:Math.round(pos(f.price)),updated:Date.now()});
+      if(clash){clash.qty=r4(clash.qty+x.qty);if(x.price)clash.price=x.price;clash.updated=Date.now();await DB.put('items',clash);
+        S.ops.forEach(o=>[...o.lines,...(o.used||[])].forEach(l=>{if(l.itemId===x.id)l.itemId=clash.id;if(l.toItemId===x.id)l.toItemId=clash.id}));await DB.putMany('ops',S.ops.filter(o=>[...o.lines,...(o.used||[])].some(l=>l.itemId===clash.id||l.toItemId===clash.id)));
+        await DB.del('items',x.id);S.items=S.items.filter(y=>y.id!==x.id)}
+      else await DB.put('items',x);
+      closeSheet();render();toast(f.unit!==old?`Birlik almashtirildi: ${fqu(x.qty,f.unit)}`:'Saqlandi')};
     const dl=$('#iDel',c);if(dl)dl.onclick=async()=>{await DB.del('items',x.id);S.items=S.items.filter(y=>y.id!==x.id);closeSheet();render();toast('O‘chirildi')};
   });
 }
