@@ -1223,7 +1223,7 @@ function vMore(){
   <div class="card" style="display:flex;flex-direction:column;gap:12px">
     <div class="field"><label for="shopIn">Tadbirkor / biznes nomi (hujjatlarda chiqadi)</label><input class="inp" id="shopIn" value="${esc(S.meta.shop||'')}" placeholder="Masalan: Karimov Yog‘och savdo"></div>
     <div id="mySig"></div>
-    <p class="hint" style="margin:0">Muhāsib 1.5.1 · ilova internetsiz ishlaydi, ma’lumotlar faqat shu telefonda saqlanadi.</p>
+    <p class="hint" style="margin:0">Muhāsib 1.5.2 · ilova internetsiz ishlaydi, ma’lumotlar faqat shu telefonda saqlanadi.</p>
   </div>`;
   $$('[data-mv2]').forEach(b=>b.onclick=()=>setView(b.dataset.mv2));
   $('#shopIn').onchange=async e=>{await setMeta('shop',e.target.value.trim());render();toast('Saqlandi')};
@@ -1686,7 +1686,7 @@ function itemSheet(x){
         <button class="btn" type="button" id="iAdj">Qoldiqni to‘g‘rilash</button></div>
       <div class="err" id="iErr" hidden></div>
       ${hist.length?`<div class="h">Harakatlar</div><div class="list">${hist.map(o=>opItem(o)).join('')}</div>`:''}
-      ${Math.abs(x.qty)<EPS?'<button class="btn dan" type="button" id="iDel">Ro‘yxatdan o‘chirish</button>':''}
+      <button class="btn dan" type="button" id="iDel">Ro‘yxatdan o‘chirish</button>
     </div><div class="sh-foot"><button class="btn pri block" type="button" id="iSave">Saqlash</button></div>`;
     $$('[data-ik]',c).forEach(b=>b.onclick=()=>{f.k=b.dataset.ik;$$('[data-ik]',c).forEach(z=>z.setAttribute('aria-pressed',z===b))});
     $$('[data-iu]',c).forEach(b=>b.onclick=()=>{f.unit=b.dataset.iu;$$('[data-iu]',c).forEach(z=>z.setAttribute('aria-pressed',z===b));
@@ -1698,10 +1698,11 @@ function itemSheet(x){
     const ip=$('#iPrice',c);ip.oninput=()=>{f.price=pos(ip.value)};ip.onblur=()=>{ip.value=f.price?sp(Math.round(f.price)):''};
     const ia=$('#iAct',c);ia.oninput=()=>{const v=num(ia.value);$('#iDiff',c).textContent=isFinite(v)?`Farq: ${v-x.qty>=0?'+':''}${fqu(r4(v-x.qty),x.unit)}`:`Ilova bo‘yicha: ${fqu(x.qty,x.unit)}`};
     bindOps(c);
+    const adjTo=async(v,note)=>{const d=r4(v-x.qty);if(!d)return false;
+      const op={id:uid('o'),ts:Date.now(),date:today(),time:nowTime(),kind:'adj',wp:x.wp,note,lines:[lineOf(x,d)]};
+      await applyStock([{...op.lines[0],itemId:x.id,dq:d,setPrice:false}]);await saveOp(op);return true};
     $('#iAdj',c).onclick=async()=>{const v=num(ia.value);if(!isFinite(v)||v<0){const e=$('#iErr',c);e.textContent='Qoldiqni raqam bilan yozing.';e.hidden=false;return}
-      const d=r4(v-x.qty);if(!d){closeSheet();toast("Farq yo'q, qoldiq to'g'ri");return}
-      const op={id:uid('o'),ts:Date.now(),date:today(),time:nowTime(),kind:'adj',wp:x.wp,note:$('#iWhy',c).value.trim(),lines:[lineOf(x,d)]};
-      await applyStock([{...op.lines[0],dq:d,setPrice:false}]);await saveOp(op);closeSheet();render();toast(`Qoldiq: ${fqu(v,x.unit)}`)};
+      const ch=await adjTo(v,$('#iWhy',c).value.trim());closeSheet();render();toast(ch?`Qoldiq: ${fqu(v,x.unit)}`:"Farq yo'q, qoldiq to'g'ri")};
     $('#iSave',c).onclick=async()=>{
       const xar=xarOf(f.tur,f.size);const probe={...x,k:f.k,xar,unit:f.unit};const old=x.unit;
       const clash=S.items.find(y=>y.id!==x.id&&itemKey(y)===itemKey(probe));
@@ -1714,8 +1715,12 @@ function itemSheet(x){
         S.ops.forEach(o=>[...o.lines,...(o.used||[])].forEach(l=>{if(l.itemId===x.id)l.itemId=clash.id;if(l.toItemId===x.id)l.toItemId=clash.id}));await DB.putMany('ops',S.ops.filter(o=>[...o.lines,...(o.used||[])].some(l=>l.itemId===clash.id||l.toItemId===clash.id)));
         await DB.del('items',x.id);S.items=S.items.filter(y=>y.id!==x.id)}
       else await DB.put('items',x);
+      const v=num(ia.value);if(!clash&&isFinite(v)&&v>=0)await adjTo(v,$('#iWhy',c).value.trim());
       closeSheet();render();toast(f.unit!==old?`Birlik almashtirildi: ${fqu(x.qty,f.unit)}`:'Saqlandi')};
-    const dl=$('#iDel',c);if(dl)dl.onclick=async()=>{await DB.del('items',x.id);S.items=S.items.filter(y=>y.id!==x.id);closeSheet();render();toast('O‘chirildi')};
+    $('#iDel',c).onclick=async()=>{
+      if(Math.abs(x.qty)>EPS&&!await askConfirm(`${x.name} o‘chirilsinmi?`,[`${wpName(x.wp)} · ${x.name} (${x.xar||'turi ko‘rsatilmagan'})`,`Qoldig‘i ${fqu(x.qty,x.unit)} — bu miqdor ombordan chiqariladi va «Sanab tuzatish» bo‘lib tarixga yoziladi.`],'','Ha, o‘chirish'))return;
+      if(Math.abs(x.qty)>EPS)await adjTo(0,'ro‘yxatdan o‘chirildi');
+      await DB.del('items',x.id);S.items=S.items.filter(y=>y.id!==x.id);closeSheet();render();toast('O‘chirildi')};
   });
 }
 
