@@ -13,6 +13,7 @@ Telefonda Chrome'da oching → ⋮ → «Bosh ekranga qo'shish».
 - Nasiya: shartnoma, jadval, surat, imzolar, eslatma, «halol bo'ldi / bo'lmadi», shartnoma va dalolatnoma PDF
 - Hisobot: davr (bugun … sanadan sanagacha), ish joyi, xomashyo/mahsulot, nomlar va turlar bo'yicha sotildi va qoldi, kiritilmaganlar, harakatlar tarixi; Excel va PDF; oy yopish va zaxira
 - 1.4 dagi ma'lumotlar birinchi ochilishda yangi tuzilishga o'tkaziladi
+- 1.6: qaytarish (vozvrat), aralash to'lov (naqd+karta+nasiya), sanoq (inventarizatsiya) rejimi, qatorlarni birlashtirish, lotin-kirill mosligi, tez to'ldirish, qidiruv, nasiya to'lovini o'chirish, zaxira eslatmasi, katta yozuv
 
 Ma'lumotlar faqat telefonda saqlanadi, bu repository'ga hech qachon tushmaydi.
 
